@@ -1,0 +1,52 @@
+<html>
+    <head>
+        <title>Login</title>
+        <style>
+         body {
+             margin: 0;
+         }
+         
+         .container {
+             margin-left: auto;
+             margin-right: auto;
+             margin-top: 4em;
+             padding: 1em;
+             width: 24%;
+             border: 1px solid black;
+         }
+
+         .error {
+             font-style: italic;
+             color: red;
+         }
+        </style>
+    </head>
+    <body>
+        <div class="container">
+            <form action="/login" method="post">
+                <label for="email"><b>Email</b></label>
+                <input type="email" placeholder="Enter email" name="email" required>
+                
+                <br/>
+                <label for="psw"><b>Password</b></label>
+                <input type="password"  placeholder="Enter password" name="psw" required>
+                {{if .Error}}<div class="error">{{.Error}}</div>{{end}}
+                <br/>
+                
+                <input type="hidden" name="client_id" value="{{.ClientId}}">
+                <input type="hidden" name="redirect_uri" value="{{.RedirectUri}}">
+                <input type="hidden" name="state" value="{{.State}}">
+                <input type="hidden" name="scope" value="{{.Scopes}}">
+
+                <br/>
+                <u>The application: <b>{{.Name}}</b> is requesting access to:</u>
+                <ul>
+                    {{range .Scopes}}
+                    <li>{{.}}</li>
+                    {{end}}
+                </ul>
+                <button type="submit">Login</button>
+            </form>
+        </div>
+    </body>
+</html>

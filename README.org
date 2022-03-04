@@ -1,0 +1,5 @@
+* OAuth Client testing server
+** DONE generic parameter access
+CLOSED: [2022-03-03 Thu 12:01]
+- query params and form values
+** TODO Handle different =response_type= flows
