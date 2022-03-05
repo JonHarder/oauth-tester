@@ -1,4 +1,50 @@
 * OAuth Client testing server
-** TODO Handle different =response_type= flows
-** TODO Handle code challenge
-** TODO Add nonce to =id_token=
+** Dependencies
+- go 1.17
+
+** Building
+#+begin_src sh
+go build
+#+end_src
+
+** Running
+#+begin_src
+Usage of /Users/jharder/Code/go/oauth/oauth:
+  -path string
+    	Configuration file containing applications and users (default "config.json")
+  -port int
+    	Port to run server on (default 8001)
+#+end_src
+
+** Configuration
+This reads from a =config.json= file, which expects an object with two
+keys: ~applications~, and ~users~.
+
+*** applications
+A list of objects, each of the form:
+
+#+begin_src json
+{
+  "clientId": "string",
+  "clientSecret": "string",
+  "callback": "url",
+  "name": "string"
+}
+#+end_src
+
+*** users
+A list of objects, each of the form:
+
+#+begin_src json
+{
+  "email": "email",
+  "password": "string",
+  "fname": "string",
+  "lname": "string"
+}
+#+end_src
+
+** Enhancements
+*** TODO Handle different =response_type= flows
+*** TODO Handle code challenge
+*** TODO Add nonce to =id_token=
