@@ -9,7 +9,7 @@ go build
 
 ** Running
 #+begin_src
-Usage of /Users/jharder/Code/go/oauth/oauth:
+Usage of oauth:
   -path string
     	Configuration file containing applications and users (default "config.json")
   -port int
