@@ -253,6 +253,7 @@ func tokenHandler(w http.ResponseWriter, req *http.Request) {
 	w.Write(responseBytes)
 }
 
+// readConfig takes a path to a config.json file and parses it as a Config object.
 func readConfig(path string) (*Config, error) {
 	dat, err := os.ReadFile(path)
 	if err != nil {
