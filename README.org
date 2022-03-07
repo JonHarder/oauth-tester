@@ -45,6 +45,7 @@ A list of objects, each of the form:
 #+end_src
 
 ** Enhancements
+*** TODO Better error reporting on invalid ~config.json~ file
 *** TODO Handle different =response_type= flows
 *** TODO Handle code challenge
 *** TODO Add nonce to =id_token=

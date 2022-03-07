@@ -286,7 +286,6 @@ func main() {
 	}
 	for _, app := range config.Apps {
 		applications[app.ClientId] = &app
-		log.Printf("app %s", app.ClientId)
 	}
 	for _, u := range config.Users {
 		users[u.Email] = &u
