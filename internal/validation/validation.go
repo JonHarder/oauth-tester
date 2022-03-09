@@ -9,8 +9,6 @@ import (
 	t "github.com/JonHarder/oauth/internal/types"
 )
 
-type Code string
-
 type AuthorizeRequest struct {
 	ClientId    string
 	RedirectUri string
@@ -22,7 +20,7 @@ type TokenRequest struct {
 	ClientId     string
 	ClientSecret string
 	RedirectUri  string
-	Code         Code
+	Code         t.Code
 }
 
 func ValidateAuthorizeRequest(p parameters.ParameterBag) (*AuthorizeRequest, error) {
@@ -81,7 +79,7 @@ func ValidateTokenRequest(req *http.Request) (TokenRequest, error) {
 		ClientId:     clientId,
 		ClientSecret: clientSecret,
 		RedirectUri:  redirectUri,
-		Code:         Code(requestCode),
+		Code:         t.Code(requestCode),
 	}, nil
 }
 

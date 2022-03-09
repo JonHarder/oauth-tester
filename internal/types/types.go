@@ -1,5 +1,7 @@
 package types
 
+type Code string
+
 type Email string
 
 type Application struct {
@@ -14,4 +16,23 @@ type User struct {
 	Password string `json:"password"`
 	Fname    string `json:"fname"`
 	Lname    string `json:"lname"`
+}
+
+type LoginRequest struct {
+	User        *User
+	Application *Application
+	Code        Code
+	Scopes      []string
+}
+
+var (
+	Applications  map[string]*Application
+	Users         map[Email]*User
+	LoginRequests map[Code]*LoginRequest
+)
+
+func init() {
+	Applications = make(map[string]*Application)
+	Users = make(map[Email]*User)
+	LoginRequests = make(map[Code]*LoginRequest)
 }
