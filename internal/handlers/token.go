@@ -32,48 +32,67 @@ func TokenHandler(w http.ResponseWriter, req *http.Request) {
 	}
 	app, ok := t.Applications[tokenRequest.ClientId]
 	if !ok {
-		HandleBadRequest(w, req, tokenRequest.RedirectUri, "Unknown client: '%s'", tokenRequest.ClientId)
+		w.WriteHeader(http.StatusBadRequest)
+		fmt.Fprintf(w, "unknown client_id")
 		return
 	}
-	if err := v.VerifyRedirectUri(*app, tokenRequest); err != nil {
-		HandleBadRequest(w, req, tokenRequest.RedirectUri, "error verifying redirect_uri: %v", err)
+	if err := v.VerifyRedirectUri(*app, *tokenRequest); err != nil {
+		w.WriteHeader(http.StatusBadRequest)
+		fmt.Fprintf(w, "%v", err)
 		return
 	}
-	accessToken, err := generateAccessToken(app, tokenRequest)
+	accessToken, err := generateAccessToken(app, *tokenRequest)
 
 	if err != nil {
-		HandleBadRequest(w, req, tokenRequest.RedirectUri, "Invalid token exchange request: %v", err)
+		w.WriteHeader(http.StatusBadRequest)
+		fmt.Fprintf(w, "%v", err)
 		return
 	}
 
-	responseBytes, err := json.Marshal(accessToken)
-	if err != nil {
-		HandleBadRequest(w, req, tokenRequest.RedirectUri, "encoding token response: %v", err)
+	responseBytes, jsonErr := json.Marshal(accessToken)
+	if jsonErr != nil {
+		w.WriteHeader(http.StatusBadRequest)
+		fmt.Fprintf(w, "%v", jsonErr)
 		return
 	}
 	log.Printf("%s", string(responseBytes))
+	w.Header().Add("Content-Type", "application/json;charset=UTF-8")
 	w.Write(responseBytes)
 }
 
 // generateAccessToken creates the access_token, including the id_token for
 // OIDC requests.
-func generateAccessToken(app *t.Application, tokenReq v.TokenRequest) (accessToken, error) {
+func generateAccessToken(app *t.Application, tokenReq v.TokenRequest) (*accessToken, *v.ValidationError) {
+	var e *v.ValidationError = nil
 	loginReq, ok := t.LoginRequests[tokenReq.Code]
 	if !ok {
-		return accessToken{}, fmt.Errorf("no login request with code found")
+		e = &v.ValidationError{
+			ErrorCode:        v.AuthErrorInvalidRequest,
+			ErrorDescription: "no login request found with provided code",
+		}
+	}
+
+	if tokenReq.RedirectUri != loginReq.Redirect {
+		e = &v.ValidationError{
+			ErrorCode:        v.AuthErrorInvalidRequest,
+			ErrorDescription: "redirect_uri does not match that of the authorization request",
+		}
 	}
 
 	if tokenReq.ClientSecret != app.ClientSecret {
-		return accessToken{}, fmt.Errorf("Invalid client_secret")
+		e = &v.ValidationError{
+			ErrorCode:        v.AuthErrorInvalidRequest,
+			ErrorDescription: "invalid client_secret",
+		}
 	}
 	openId := false
-	log.Printf("generating token based off the following scopes: %v", loginReq.Scopes)
 	for _, scope := range loginReq.Scopes {
 		if scope == "openid" {
 			openId = true
 			break
 		}
 	}
+	log.Printf("generating access token: scopes: %v", loginReq.Scopes)
 	resp := accessToken{
 		AccessToken: util.RandomString(32),
 		TokenType:   "Bearer",
@@ -81,21 +100,28 @@ func generateAccessToken(app *t.Application, tokenReq v.TokenRequest) (accessTok
 		Scope:       strings.Join(loginReq.Scopes, " "),
 	}
 	if openId {
-		log.Printf("Handling open id connect request")
-		idToken := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
+		claims := jwt.MapClaims{
 			"sub":         loginReq.User.Email,
 			"aud":         app.Name,
 			"iss":         constants.ISSUER,
 			"sur_name":    loginReq.User.Fname,
 			"family_name": loginReq.User.Lname,
-		})
-		tokenStr, err := idToken.SignedString([]byte(tokenReq.ClientSecret))
-		if err != nil {
-			return accessToken{}, err
+		}
+		if loginReq.Nonce != nil {
+			claims["nonce"] = *loginReq.Nonce
+		}
+		if e != nil {
+
+		}
+		idToken := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
+		tokenStr, signingErr := idToken.SignedString([]byte(tokenReq.ClientSecret))
+		if signingErr != nil {
+			return nil, &v.ValidationError{
+				ErrorCode:        v.AuthErrorServerError,
+				ErrorDescription: fmt.Sprintf("%v", signingErr),
+			}
 		}
 		resp.IdToken = tokenStr
-	} else {
-		log.Printf("Handling non open id connect request")
 	}
-	return resp, nil
+	return &resp, nil
 }

@@ -23,6 +23,8 @@ type LoginRequest struct {
 	Application *Application
 	Code        Code
 	Scopes      []string
+	Redirect    string
+	Nonce       *string
 }
 
 var (

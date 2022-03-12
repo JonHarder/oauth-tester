@@ -66,23 +66,25 @@ func init() {
 // main is the entry point to the oauth-server.
 func main() {
 	var port int
-	var path string
+	var configPath string
 	flag.IntVar(&port, "port", 8001, "Port to run server on")
-	flag.StringVar(&path, "path", "config.json", "Configuration file containing applications and users")
+	flag.StringVar(&configPath, "config", "config.json", "Path to the configuration file containing applications and users")
 	flag.Parse()
 
 	if _, err := os.Stat("login.html"); errors.Is(err, os.ErrNotExist) {
 		log.Fatalf("ERROR: html file 'login.html' not found.")
 	}
 
-	config, err := readConfig(path)
+	config, err := readConfig(configPath)
 	if err != nil {
 		log.Fatalf("Error reading configuration file: %v", err)
 	}
 	for _, app := range config.Apps {
+		app := app
 		t.Applications[app.ClientId] = &app
 	}
 	for _, u := range config.Users {
+		u := u
 		t.Users[u.Email] = &u
 	}
 

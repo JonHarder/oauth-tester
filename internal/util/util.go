@@ -10,3 +10,8 @@ func RandomString(n int) string {
 	}
 	return string(data)
 }
+
+func StrPtr(s string) *string {
+	s = s
+	return &s
+}

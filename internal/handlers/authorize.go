@@ -20,21 +20,26 @@ func AuthorizationHandler(w http.ResponseWriter, req *http.Request) {
 	params := parameters.NewFromQuery(req)
 	authReq, err := v.ValidateAuthorizeRequest(*params)
 	if err != nil {
-		HandleBadRequest(w, req, req.Host, "Bad authorization request: %v", err)
+		w.WriteHeader(http.StatusBadRequest)
+		fmt.Fprintf(w, "%s: %s", err.ErrorCode, err.ErrorDescription)
 		return
 	}
 	log.Printf("authorize request: %v", authReq)
 
 	app, ok := t.Applications[authReq.ClientId]
 	if !ok {
-		fmt.Fprintf(w, "No client configured with ID: %s", authReq.ClientId)
-		w.WriteHeader(http.StatusBadRequest)
+		HandleBadRequest(w, req, authReq.RedirectUri, v.ValidationError{
+			ErrorCode:        v.AuthErrorUnauthorizedClient,
+			ErrorDescription: fmt.Sprintf("No client configured with ID: %s", authReq.ClientId),
+		})
 		return
 	}
 
 	if app.Callback != authReq.RedirectUri {
-		fmt.Fprintf(w, "Invalid redirect_uri %s", authReq.RedirectUri)
-		w.WriteHeader(http.StatusBadRequest)
+		HandleBadRequest(w, req, authReq.RedirectUri, v.ValidationError{
+			ErrorCode:        v.AuthErrorInvalidRequest,
+			ErrorDescription: "token reqirect_uri does not match authorization request",
+		})
 		return
 	}
 
@@ -53,12 +58,25 @@ func LoginHandler(w http.ResponseWriter, req *http.Request) {
 		fmt.Fprintf(w, "invalid post body. expecting content type 'application/x-www-urnencoded'")
 		return
 	}
-	authReq, err := v.ValidateAuthorizeRequest(*params)
+	authReq, validationError := v.ValidateAuthorizeRequest(*params)
+	if validationError != nil {
+		w.WriteHeader(http.StatusBadRequest)
+		fmt.Fprintf(w, "%s: %s", validationError.ErrorCode, validationError.ErrorDescription)
+		return
+	}
 	code := generateCode()
 
 	app, ok := t.Applications[authReq.ClientId]
 	if !ok {
-		HandleBadRequest(w, req, authReq.RedirectUri, "Unknown client_id")
+		HandleBadRequest(w, req, authReq.RedirectUri, v.ValidationError{
+			ErrorCode:        v.AuthErrorInvalidRequest,
+			ErrorDescription: "unknown client_id",
+		})
+		return
+	}
+	if app.Callback != authReq.RedirectUri {
+		w.WriteHeader(http.StatusForbidden)
+		fmt.Fprintf(w, "Callback does not match registered redirect uri")
 		return
 	}
 
@@ -68,12 +86,16 @@ func LoginHandler(w http.ResponseWriter, req *http.Request) {
 		serveLogin(w, *authReq, app, &errorMsg)
 		return
 	}
-	responseParams := url.Values{}
+	var responseParams url.Values
+	nonce := util.RandomString(32)
+
 	t.LoginRequests[code] = &t.LoginRequest{
 		User:        u,
 		Application: app,
 		Code:        code,
 		Scopes:      authReq.Scopes,
+		Redirect:    authReq.RedirectUri,
+		Nonce:       &nonce,
 	}
 
 	responseParams.Set("client_id", app.ClientId)
@@ -93,19 +115,21 @@ func serveLogin(w http.ResponseWriter, authorizeReq v.AuthorizeRequest, app *t.A
 		return
 	}
 	data := struct {
-		ClientId    string
-		RedirectUri string
-		State       string
-		Scopes      []string
-		Name        string
-		Error       *string
+		ClientId     string
+		RedirectUri  string
+		State        string
+		ResponseType string
+		Scopes       []string
+		Name         string
+		Error        *string
 	}{
-		ClientId:    authorizeReq.ClientId,
-		RedirectUri: authorizeReq.RedirectUri,
-		State:       authorizeReq.State,
-		Scopes:      authorizeReq.Scopes,
-		Name:        app.Name,
-		Error:       e,
+		ClientId:     authorizeReq.ClientId,
+		RedirectUri:  authorizeReq.RedirectUri,
+		State:        authorizeReq.State,
+		ResponseType: authorizeReq.ResponseType,
+		Scopes:       authorizeReq.Scopes,
+		Name:         app.Name,
+		Error:        e,
 	}
 	if err := tmpl.Execute(w, data); err != nil {
 		log.Printf("ERROR: executing template: %v", err)

@@ -10,10 +10,11 @@ import (
 )
 
 type AuthorizeRequest struct {
-	ClientId    string
-	RedirectUri string
-	State       string
-	Scopes      []string
+	ClientId     string
+	RedirectUri  string
+	ResponseType string
+	State        string
+	Scopes       []string
 }
 
 type TokenRequest struct {
@@ -23,59 +24,154 @@ type TokenRequest struct {
 	Code         t.Code
 }
 
-func ValidateAuthorizeRequest(p parameters.ParameterBag) (*AuthorizeRequest, error) {
-	badAuthReq := func(missing string) error {
-		return fmt.Errorf("Bad authorize request. Missing %s", missing)
-	}
+const AuthErrorInvalidRequest = "invalid_request"
+const AuthErrorUnauthorizedClient = "unauthorized_client"
+const AuthErrorAccessDenied = "access_denied"
+const AuthErrorUnsupportedResponseType = "unsupported_response_type"
+const AuthErrorInvalidScope = "invalid_scope"
+const AuthErrorServerError = "server_error"
+const AuthErrorTemporarilyUnavailable = "temporarily_unavailable"
 
+type ValidationError struct {
+	ErrorCode        string
+	ErrorDescription string
+}
+
+func notImplementedError(format string, v ...interface{}) error {
+	return fmt.Errorf("Not Implemented: %s", fmt.Sprintf(format, v...))
+}
+
+func ValidateAuthorizeRequest(p parameters.ParameterBag) (*AuthorizeRequest, *ValidationError) {
+	var e *ValidationError = nil
+
+	responseType, ok := p.Parameters["response_type"]
+	if !ok {
+		e = &ValidationError{
+			ErrorCode:        AuthErrorInvalidRequest,
+			ErrorDescription: "missing required parameter response_type",
+		}
+	}
+	if responseType != "code" {
+		e = &ValidationError{
+			ErrorCode:        AuthErrorUnsupportedResponseType,
+			ErrorDescription: "server only supports response_type of 'code'",
+		}
+	}
 	redirectUri, ok := p.Parameters["redirect_uri"]
 	if !ok {
-		return nil, badAuthReq("redirect_uri")
+		e = &ValidationError{
+			ErrorCode:        AuthErrorInvalidRequest,
+			ErrorDescription: "missing required parameter redirect_uri",
+		}
 	}
 	clientId, ok := p.Parameters["client_id"]
 	if !ok {
-		return nil, badAuthReq("client_id")
+		e = &ValidationError{
+			ErrorCode:        AuthErrorInvalidRequest,
+			ErrorDescription: "missing required parameter client_id",
+		}
 	}
 	state, ok := p.Parameters["state"]
 	if !ok {
-		return nil, badAuthReq("state")
+		e = &ValidationError{
+			ErrorCode:        AuthErrorInvalidRequest,
+			ErrorDescription: "missing required parameter state",
+		}
 	}
 	scope, ok := p.Parameters["scope"]
 	if !ok {
-		return nil, badAuthReq("scope")
+		e = &ValidationError{
+			ErrorCode:        AuthErrorInvalidRequest,
+			ErrorDescription: "missing required parameter scope",
+		}
 	}
 	scopes := strings.Split(scope, " ")
+	if scopes[len(scopes)-1] == "" {
+		scopes = scopes[:len(scopes)-1]
+	}
+	if e != nil {
+		return nil, e
+	}
 	return &AuthorizeRequest{
-		ClientId:    clientId,
-		RedirectUri: redirectUri,
-		State:       state,
-		Scopes:      scopes,
+		ClientId:     clientId,
+		RedirectUri:  redirectUri,
+		ResponseType: responseType,
+		State:        state,
+		Scopes:       scopes,
 	}, nil
-
 }
 
-func ValidateTokenRequest(req *http.Request) (TokenRequest, error) {
-	if err := req.ParseForm(); err != nil {
-		return TokenRequest{}, fmt.Errorf("Error parsing form: %v", err)
+func ValidateTokenRequest(req *http.Request) (*TokenRequest, *ValidationError) {
+	params, err := parameters.NewFromForm(req)
+	var e *ValidationError = nil
+	if err != nil {
+		e = &ValidationError{
+			ErrorCode:        AuthErrorInvalidRequest,
+			ErrorDescription: "failed to parse post body",
+		}
 	}
-	clientId := req.FormValue("client_id")
-	if clientId == "" {
-		return TokenRequest{}, fmt.Errorf("missing required post value: client_id")
+	grantType, ok := params.Parameters["grant_type"]
+	if !ok {
+		e = &ValidationError{
+			ErrorCode:        AuthErrorInvalidRequest,
+			ErrorDescription: "missing required parameter grant_type",
+		}
 	}
-	clientSecret := req.FormValue("client_secret")
-	if clientSecret == "" {
-		return TokenRequest{}, fmt.Errorf("missing required post value: client_secret")
+	if grantType != "authorization_code" {
+		e = &ValidationError{
+			ErrorCode:        AuthErrorInvalidRequest,
+			ErrorDescription: "invalid grant_type only 'authorization_code' allowed",
+		}
 	}
-	redirectUri := req.FormValue("redirect_uri")
-	if redirectUri == "" {
-		return TokenRequest{}, fmt.Errorf("missing required post value: redirect_uri")
+	requestCode, ok := params.Parameters["code"]
+	if !ok {
+		e = &ValidationError{
+			ErrorCode:        AuthErrorInvalidRequest,
+			ErrorDescription: "missing required post value: code",
+		}
 	}
-	requestCode := req.FormValue("code")
-	if requestCode == "" {
-		return TokenRequest{}, fmt.Errorf("missing required post value: code")
+	redirectUri, ok := params.Parameters["redirect_uri"]
+	if !ok {
+		e = &ValidationError{
+			ErrorCode:        AuthErrorInvalidRequest,
+			ErrorDescription: "missing required post value: redirect_uri",
+		}
+	}
+	clientId, ok := params.Parameters["client_id"]
+	if !ok {
+		e = &ValidationError{
+			ErrorCode:        AuthErrorInvalidRequest,
+			ErrorDescription: "missiong require post value: client_id",
+		}
+	}
+	authHeader := req.Header.Get("Authorization")
+	if authHeader == "" {
+		e = &ValidationError{
+			ErrorCode:        AuthErrorInvalidRequest,
+			ErrorDescription: "client_secret not provided in Authorization header",
+		}
+	}
+	authToken := strings.Split(authHeader, " ")
+	var clientSecret string
+	if len(authToken) < 2 {
+		e = &ValidationError{
+			ErrorCode:        AuthErrorInvalidRequest,
+			ErrorDescription: "bad authorization header, expecting Bearer token",
+		}
+	} else if authToken[0] != "Bearer" {
+		e = &ValidationError{
+			ErrorCode:        AuthErrorInvalidRequest,
+			ErrorDescription: "bad authorization header, expecting Bearer token",
+		}
+	} else {
+		clientSecret = authToken[1]
 	}
 
-	return TokenRequest{
+	if e != nil {
+		return nil, e
+	}
+
+	return &TokenRequest{
 		ClientId:     clientId,
 		ClientSecret: clientSecret,
 		RedirectUri:  redirectUri,
@@ -84,12 +180,12 @@ func ValidateTokenRequest(req *http.Request) (TokenRequest, error) {
 }
 
 // verifyRedirectUri checks that the requested redirect_uri matches the one registered with the application
-func VerifyRedirectUri(app t.Application, tokenReq TokenRequest) error {
+func VerifyRedirectUri(app t.Application, tokenReq TokenRequest) *ValidationError {
 	if tokenReq.RedirectUri != app.Callback {
-		return fmt.Errorf(
-			"provided redirect_uri: %s does not match registered uri",
-			app.Callback,
-		)
+		return &ValidationError{
+			ErrorCode:        AuthErrorInvalidRequest,
+			ErrorDescription: "provided redirect_uri does not match registered uri",
+		}
 	}
 	return nil
 }
