@@ -86,7 +86,7 @@ func LoginHandler(w http.ResponseWriter, req *http.Request) {
 		serveLogin(w, *authReq, app, &errorMsg)
 		return
 	}
-	var responseParams url.Values
+	responseParams := url.Values{}
 	nonce := util.RandomString(32)
 
 	t.LoginRequests[code] = &t.LoginRequest{
@@ -96,6 +96,7 @@ func LoginHandler(w http.ResponseWriter, req *http.Request) {
 		Scopes:      authReq.Scopes,
 		Redirect:    authReq.RedirectUri,
 		Nonce:       &nonce,
+		Pkce:        authReq.Pkce,
 	}
 
 	responseParams.Set("client_id", app.ClientId)
@@ -114,22 +115,32 @@ func serveLogin(w http.ResponseWriter, authorizeReq v.AuthorizeRequest, app *t.A
 		fmt.Fprintf(w, "ERROR: parsing template: %v", err)
 		return
 	}
+	var codeChallenge *string
+	var codeChallengeMethod *string
+	if pkce := authorizeReq.Pkce; pkce != nil {
+		codeChallenge = &pkce.CodeChallenge
+		codeChallengeMethod = &pkce.CodeChallengeMethod
+	}
 	data := struct {
-		ClientId     string
-		RedirectUri  string
-		State        string
-		ResponseType string
-		Scopes       []string
-		Name         string
-		Error        *string
+		ClientId            string
+		RedirectUri         string
+		State               string
+		ResponseType        string
+		Scopes              []string
+		Name                string
+		Error               *string
+		CodeChallenge       *string
+		CodeChallengeMethod *string
 	}{
-		ClientId:     authorizeReq.ClientId,
-		RedirectUri:  authorizeReq.RedirectUri,
-		State:        authorizeReq.State,
-		ResponseType: authorizeReq.ResponseType,
-		Scopes:       authorizeReq.Scopes,
-		Name:         app.Name,
-		Error:        e,
+		ClientId:            authorizeReq.ClientId,
+		RedirectUri:         authorizeReq.RedirectUri,
+		State:               authorizeReq.State,
+		ResponseType:        authorizeReq.ResponseType,
+		Scopes:              authorizeReq.Scopes,
+		Name:                app.Name,
+		Error:               e,
+		CodeChallenge:       codeChallenge,
+		CodeChallengeMethod: codeChallengeMethod,
 	}
 	if err := tmpl.Execute(w, data); err != nil {
 		log.Printf("ERROR: executing template: %v", err)

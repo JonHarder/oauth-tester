@@ -5,4 +5,4 @@ install:
 	go install ./cmd/oauth-server
 
 test:
-	go test
+	go test ./...

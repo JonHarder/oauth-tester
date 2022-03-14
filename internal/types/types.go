@@ -18,6 +18,11 @@ type User struct {
 	Lname    string `json:"lname"`
 }
 
+type PKCE struct {
+	CodeChallenge       string
+	CodeChallengeMethod string
+}
+
 type LoginRequest struct {
 	User        *User
 	Application *Application
@@ -25,6 +30,7 @@ type LoginRequest struct {
 	Scopes      []string
 	Redirect    string
 	Nonce       *string
+	Pkce        *PKCE
 }
 
 var (

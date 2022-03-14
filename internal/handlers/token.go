@@ -63,24 +63,37 @@ func TokenHandler(w http.ResponseWriter, req *http.Request) {
 // generateAccessToken creates the access_token, including the id_token for
 // OIDC requests.
 func generateAccessToken(app *t.Application, tokenReq v.TokenRequest) (*accessToken, *v.ValidationError) {
-	var e *v.ValidationError = nil
 	loginReq, ok := t.LoginRequests[tokenReq.Code]
 	if !ok {
-		e = &v.ValidationError{
+		return nil, &v.ValidationError{
 			ErrorCode:        v.AuthErrorInvalidRequest,
 			ErrorDescription: "no login request found with provided code",
 		}
 	}
 
 	if tokenReq.RedirectUri != loginReq.Redirect {
-		e = &v.ValidationError{
+		return nil, &v.ValidationError{
 			ErrorCode:        v.AuthErrorInvalidRequest,
 			ErrorDescription: "redirect_uri does not match that of the authorization request",
 		}
 	}
 
+	if pkce := loginReq.Pkce; pkce != nil {
+		// TODO: this assums 'plain' code_challenge_method
+		log.Printf("code_challenge: %s, code_verifier: %s", pkce.CodeChallenge, tokenReq.CodeVerifier)
+		if tokenReq.CodeVerifier != pkce.CodeChallenge {
+			return nil, &v.ValidationError{
+				ErrorCode: v.AuthErrorInvalidGrant,
+				ErrorDescription: fmt.Sprintf(
+					"PKCE code_verifier using method %s failed validation",
+					pkce.CodeChallengeMethod,
+				),
+			}
+		}
+	}
+
 	if tokenReq.ClientSecret != app.ClientSecret {
-		e = &v.ValidationError{
+		return nil, &v.ValidationError{
 			ErrorCode:        v.AuthErrorInvalidRequest,
 			ErrorDescription: "invalid client_secret",
 		}
@@ -109,9 +122,6 @@ func generateAccessToken(app *t.Application, tokenReq v.TokenRequest) (*accessTo
 		}
 		if loginReq.Nonce != nil {
 			claims["nonce"] = *loginReq.Nonce
-		}
-		if e != nil {
-
 		}
 		idToken := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
 		tokenStr, signingErr := idToken.SignedString([]byte(tokenReq.ClientSecret))

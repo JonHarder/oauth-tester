@@ -14,6 +14,7 @@ type AuthorizeRequest struct {
 	RedirectUri  string
 	ResponseType string
 	State        string
+	Pkce         *t.PKCE
 	Scopes       []string
 }
 
@@ -22,6 +23,12 @@ type TokenRequest struct {
 	ClientSecret string
 	RedirectUri  string
 	Code         t.Code
+	CodeVerifier string
+}
+
+type ValidationError struct {
+	ErrorCode        string
+	ErrorDescription string
 }
 
 const AuthErrorInvalidRequest = "invalid_request"
@@ -29,153 +36,140 @@ const AuthErrorUnauthorizedClient = "unauthorized_client"
 const AuthErrorAccessDenied = "access_denied"
 const AuthErrorUnsupportedResponseType = "unsupported_response_type"
 const AuthErrorInvalidScope = "invalid_scope"
+const AuthErrorInvalidGrant = "invalid_grant"
 const AuthErrorServerError = "server_error"
 const AuthErrorTemporarilyUnavailable = "temporarily_unavailable"
 
-type ValidationError struct {
-	ErrorCode        string
-	ErrorDescription string
-}
-
-func notImplementedError(format string, v ...interface{}) error {
-	return fmt.Errorf("Not Implemented: %s", fmt.Sprintf(format, v...))
-}
-
+// ValidateAuthhorizeRequest takes incoming parameters and creates an AuthorizeRequest.
+// If there was an issue in parsing and validating, a ValidationError with information
+// pertaining to the issue will be retuned.
 func ValidateAuthorizeRequest(p parameters.ParameterBag) (*AuthorizeRequest, *ValidationError) {
-	var e *ValidationError = nil
-
-	responseType, ok := p.Parameters["response_type"]
-	if !ok {
-		e = &ValidationError{
-			ErrorCode:        AuthErrorInvalidRequest,
-			ErrorDescription: "missing required parameter response_type",
+	requiredParameters := []string{
+		"response_type",
+		"redirect_uri",
+		"client_id",
+		"state",
+		"scope",
+	}
+	// Check for missing required parameters.
+	for _, param := range requiredParameters {
+		if !p.Has(param) {
+			return nil, &ValidationError{
+				ErrorCode:        AuthErrorInvalidRequest,
+				ErrorDescription: fmt.Sprintf("missing required parameter %s", param),
+			}
 		}
 	}
-	if responseType != "code" {
-		e = &ValidationError{
+
+	if p.Parameters["response_type"] != "code" {
+		return nil, &ValidationError{
 			ErrorCode:        AuthErrorUnsupportedResponseType,
 			ErrorDescription: "server only supports response_type of 'code'",
 		}
 	}
-	redirectUri, ok := p.Parameters["redirect_uri"]
-	if !ok {
-		e = &ValidationError{
-			ErrorCode:        AuthErrorInvalidRequest,
-			ErrorDescription: "missing required parameter redirect_uri",
-		}
-	}
-	clientId, ok := p.Parameters["client_id"]
-	if !ok {
-		e = &ValidationError{
-			ErrorCode:        AuthErrorInvalidRequest,
-			ErrorDescription: "missing required parameter client_id",
-		}
-	}
-	state, ok := p.Parameters["state"]
-	if !ok {
-		e = &ValidationError{
-			ErrorCode:        AuthErrorInvalidRequest,
-			ErrorDescription: "missing required parameter state",
-		}
-	}
-	scope, ok := p.Parameters["scope"]
-	if !ok {
-		e = &ValidationError{
-			ErrorCode:        AuthErrorInvalidRequest,
-			ErrorDescription: "missing required parameter scope",
-		}
-	}
+	scope := p.Parameters["scope"]
 	scopes := strings.Split(scope, " ")
 	if scopes[len(scopes)-1] == "" {
 		scopes = scopes[:len(scopes)-1]
 	}
-	if e != nil {
-		return nil, e
+
+	var pkce *t.PKCE = nil
+	codeChallenge, codeChallengeOk := p.Parameters["code_challenge"]
+	codeChallengeMethod, codeChallengeMethodOk := p.Parameters["code_challenge_method"]
+	if codeChallengeOk != codeChallengeMethodOk {
+		return nil, &ValidationError{
+			ErrorCode:        AuthErrorInvalidRequest,
+			ErrorDescription: "Both code_challenge and code_challenge_method are required if one provided",
+		}
+	} else if codeChallengeOk {
+		if codeChallengeMethod != "plain" {
+			return nil, &ValidationError{
+				ErrorCode:        AuthErrorInvalidRequest,
+				ErrorDescription: "Authorization server only supports 'plain' code_challenge_method",
+			}
+		}
+		pkce = &t.PKCE{
+			CodeChallenge:       codeChallenge,
+			CodeChallengeMethod: codeChallengeMethod,
+		}
+	} else {
+		return nil, &ValidationError{
+			ErrorCode:        AuthErrorInvalidRequest,
+			ErrorDescription: "Missing required parameter: code_challenge",
+		}
 	}
+
 	return &AuthorizeRequest{
-		ClientId:     clientId,
-		RedirectUri:  redirectUri,
-		ResponseType: responseType,
-		State:        state,
+		ClientId:     p.Parameters["client_id"],
+		RedirectUri:  p.Parameters["redirect_uri"],
+		ResponseType: p.Parameters["response_type"],
+		State:        p.Parameters["state"],
+		Pkce:         pkce,
 		Scopes:       scopes,
 	}, nil
 }
 
+func getBearerToken(header http.Header) (string, error) {
+	bearer := header.Get("Authorization")
+	if bearer == "" {
+		return "", fmt.Errorf("missing Authorization header")
+	}
+	parts := strings.Split(bearer, " ")
+	if parts[0] != "Bearer" {
+		return "", fmt.Errorf("Authorization header is not a bearer token")
+	}
+	if len(parts) < 2 {
+		return "", fmt.Errorf("Bearer was missing it's token")
+	}
+	return parts[1], nil
+}
+
+// ValidateTokenRequest
 func ValidateTokenRequest(req *http.Request) (*TokenRequest, *ValidationError) {
 	params, err := parameters.NewFromForm(req)
-	var e *ValidationError = nil
 	if err != nil {
-		e = &ValidationError{
+		return nil, &ValidationError{
 			ErrorCode:        AuthErrorInvalidRequest,
-			ErrorDescription: "failed to parse post body",
+			ErrorDescription: fmt.Sprintf("failed to parse form: %s", err.Error()),
 		}
 	}
-	grantType, ok := params.Parameters["grant_type"]
-	if !ok {
-		e = &ValidationError{
-			ErrorCode:        AuthErrorInvalidRequest,
-			ErrorDescription: "missing required parameter grant_type",
+	requiredParameters := []string{
+		"grant_type",
+		"code",
+		"redirect_uri",
+		"client_id",
+		"code_verifier",
+	}
+	for _, param := range requiredParameters {
+		if !params.Has(param) {
+			return nil, &ValidationError{
+				ErrorCode:        AuthErrorInvalidRequest,
+				ErrorDescription: "missing required parameter " + param,
+			}
 		}
 	}
+
+	grantType := params.Parameters["grant_type"]
 	if grantType != "authorization_code" {
-		e = &ValidationError{
+		return nil, &ValidationError{
 			ErrorCode:        AuthErrorInvalidRequest,
 			ErrorDescription: "invalid grant_type only 'authorization_code' allowed",
 		}
 	}
-	requestCode, ok := params.Parameters["code"]
-	if !ok {
-		e = &ValidationError{
+	clientSecret, err := getBearerToken(req.Header)
+	if err != nil {
+		return nil, &ValidationError{
 			ErrorCode:        AuthErrorInvalidRequest,
-			ErrorDescription: "missing required post value: code",
+			ErrorDescription: err.Error(),
 		}
-	}
-	redirectUri, ok := params.Parameters["redirect_uri"]
-	if !ok {
-		e = &ValidationError{
-			ErrorCode:        AuthErrorInvalidRequest,
-			ErrorDescription: "missing required post value: redirect_uri",
-		}
-	}
-	clientId, ok := params.Parameters["client_id"]
-	if !ok {
-		e = &ValidationError{
-			ErrorCode:        AuthErrorInvalidRequest,
-			ErrorDescription: "missiong require post value: client_id",
-		}
-	}
-	authHeader := req.Header.Get("Authorization")
-	if authHeader == "" {
-		e = &ValidationError{
-			ErrorCode:        AuthErrorInvalidRequest,
-			ErrorDescription: "client_secret not provided in Authorization header",
-		}
-	}
-	authToken := strings.Split(authHeader, " ")
-	var clientSecret string
-	if len(authToken) < 2 {
-		e = &ValidationError{
-			ErrorCode:        AuthErrorInvalidRequest,
-			ErrorDescription: "bad authorization header, expecting Bearer token",
-		}
-	} else if authToken[0] != "Bearer" {
-		e = &ValidationError{
-			ErrorCode:        AuthErrorInvalidRequest,
-			ErrorDescription: "bad authorization header, expecting Bearer token",
-		}
-	} else {
-		clientSecret = authToken[1]
-	}
-
-	if e != nil {
-		return nil, e
 	}
 
 	return &TokenRequest{
-		ClientId:     clientId,
+		ClientId:     params.Parameters["client_id"],
 		ClientSecret: clientSecret,
-		RedirectUri:  redirectUri,
-		Code:         t.Code(requestCode),
+		RedirectUri:  params.Parameters["redirect_uri"],
+		Code:         t.Code(params.Parameters["code"]),
+		CodeVerifier: params.Parameters["code_verifier"],
 	}, nil
 }
 
