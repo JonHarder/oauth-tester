@@ -73,12 +73,6 @@ func ValidateAuthorizeRequest(p parameters.ParameterBag) (*t.AuthorizeRequest, *
 			ErrorDescription: "Both code_challenge and code_challenge_method are required if one provided",
 		}
 	} else if codeChallengeOk {
-		if codeChallengeMethod != "plain" {
-			return nil, &ValidationError{
-				ErrorCode:        AuthErrorInvalidRequest,
-				ErrorDescription: "Authorization server only supports 'plain' code_challenge_method",
-			}
-		}
 		pkce = &t.PKCE{
 			CodeChallenge:       codeChallenge,
 			CodeChallengeMethod: codeChallengeMethod,

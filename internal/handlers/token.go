@@ -45,7 +45,7 @@ func TokenHandler(w http.ResponseWriter, req *http.Request) {
 
 	if err != nil {
 		w.WriteHeader(http.StatusBadRequest)
-		fmt.Fprintf(w, "%v", err)
+		fmt.Fprintf(w, "%s: %s", err.ErrorCode, err.ErrorDescription)
 		return
 	}
 
@@ -78,16 +78,38 @@ func generateAccessToken(app *t.Application, tokenReq v.TokenRequest) (*accessTo
 		}
 	}
 
+	// TODO: rip PKCE verification out into separate func (in validation maybe?)
 	if pkce := loginReq.Pkce; pkce != nil {
-		// TODO: this assums 'plain' code_challenge_method
 		log.Printf("code_challenge: %s, code_verifier: %s", pkce.CodeChallenge, tokenReq.CodeVerifier)
-		if tokenReq.CodeVerifier != pkce.CodeChallenge {
+		switch pkce.CodeChallengeMethod {
+		case "S256":
+			computedChallenge := util.S256CodeChallenge(tokenReq.CodeVerifier)
+			if computedChallenge != pkce.CodeChallenge {
+				return nil, &v.ValidationError{
+					ErrorCode: v.AuthErrorInvalidGrant,
+					ErrorDescription: fmt.Sprintf(
+						"PKCE computed code challenge using provided verifier: '%s' did not match challenge from auth req: %s",
+						tokenReq.CodeVerifier,
+						pkce.CodeChallenge,
+					),
+				}
+			}
+			break
+		case "plain":
+			if tokenReq.CodeVerifier != pkce.CodeChallenge {
+				return nil, &v.ValidationError{
+					ErrorCode: v.AuthErrorInvalidGrant,
+					ErrorDescription: fmt.Sprintf(
+						"PKCE plain method verification failed, provided verifier did not match initial challenge: %s",
+						tokenReq.CodeVerifier,
+					),
+				}
+			}
+			break
+		default:
 			return nil, &v.ValidationError{
-				ErrorCode: v.AuthErrorInvalidGrant,
-				ErrorDescription: fmt.Sprintf(
-					"PKCE code_verifier using method %s failed validation",
-					pkce.CodeChallengeMethod,
-				),
+				ErrorCode:        v.AuthErrorInvalidRequest,
+				ErrorDescription: fmt.Sprintf("unknown code_challenge_method: %s", pkce.CodeChallengeMethod),
 			}
 		}
 	}
