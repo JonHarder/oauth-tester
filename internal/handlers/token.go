@@ -114,9 +114,12 @@ func generateAccessToken(app *t.Application, tokenReq v.TokenRequest) (*accessTo
 	}
 	if openId {
 		claims := jwt.MapClaims{
-			"sub":         loginReq.User.Email,
-			"aud":         app.Name,
-			"iss":         constants.ISSUER,
+			"iss": constants.ISSUER,
+			"sub": loginReq.User.Email,
+			"aud": app.Name,
+			// exp expiration time
+			// iat when was the token issued
+			// nbf time before which the token must not be accepted
 			"sur_name":    loginReq.User.Fname,
 			"family_name": loginReq.User.Lname,
 		}

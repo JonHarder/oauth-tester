@@ -9,15 +9,6 @@ import (
 	t "github.com/JonHarder/oauth/internal/types"
 )
 
-type AuthorizeRequest struct {
-	ClientId     string
-	RedirectUri  string
-	ResponseType string
-	State        string
-	Pkce         *t.PKCE
-	Scopes       []string
-}
-
 type TokenRequest struct {
 	ClientId     string
 	ClientSecret string
@@ -43,7 +34,7 @@ const AuthErrorTemporarilyUnavailable = "temporarily_unavailable"
 // ValidateAuthhorizeRequest takes incoming parameters and creates an AuthorizeRequest.
 // If there was an issue in parsing and validating, a ValidationError with information
 // pertaining to the issue will be retuned.
-func ValidateAuthorizeRequest(p parameters.ParameterBag) (*AuthorizeRequest, *ValidationError) {
+func ValidateAuthorizeRequest(p parameters.ParameterBag) (*t.AuthorizeRequest, *ValidationError) {
 	requiredParameters := []string{
 		"response_type",
 		"redirect_uri",
@@ -99,7 +90,7 @@ func ValidateAuthorizeRequest(p parameters.ParameterBag) (*AuthorizeRequest, *Va
 		}
 	}
 
-	return &AuthorizeRequest{
+	return &t.AuthorizeRequest{
 		ClientId:     p.Parameters["client_id"],
 		RedirectUri:  p.Parameters["redirect_uri"],
 		ResponseType: p.Parameters["response_type"],

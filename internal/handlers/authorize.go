@@ -58,10 +58,16 @@ func LoginHandler(w http.ResponseWriter, req *http.Request) {
 		fmt.Fprintf(w, "invalid post body. expecting content type 'application/x-www-urnencoded'")
 		return
 	}
-	authReq, validationError := v.ValidateAuthorizeRequest(*params)
-	if validationError != nil {
+	loginId, ok := params.Parameters["login_id"]
+	if !ok {
 		w.WriteHeader(http.StatusBadRequest)
-		fmt.Fprintf(w, "%s: %s", validationError.ErrorCode, validationError.ErrorDescription)
+		fmt.Fprintf(w, "missing login_id")
+		return
+	}
+	authReq, ok := t.AuthRequests[t.LoginId(loginId)]
+	if !ok {
+		w.WriteHeader(http.StatusBadRequest)
+		fmt.Fprintf(w, "unknown login request, login_id not found")
 		return
 	}
 	code := generateCode()
@@ -83,7 +89,7 @@ func LoginHandler(w http.ResponseWriter, req *http.Request) {
 	u, err := validateUser(t.Email(req.FormValue("email")), req.FormValue("psw"))
 	if err != nil {
 		errorMsg := err.Error()
-		serveLogin(w, *authReq, app, &errorMsg)
+		serveLogin(w, authReq, app, &errorMsg)
 		return
 	}
 	responseParams := url.Values{}
@@ -108,43 +114,31 @@ func LoginHandler(w http.ResponseWriter, req *http.Request) {
 
 // serveLogin displays the login form for the user.
 // It passes oauth information through as well.
-func serveLogin(w http.ResponseWriter, authorizeReq v.AuthorizeRequest, app *t.Application, e *string) {
+func serveLogin(w http.ResponseWriter, authorizeReq t.AuthorizeRequest, app *t.Application, e *string) {
 	tmpl, err := template.New("login.html").ParseFiles("login.html")
 	if err != nil {
 		log.Printf("ERROR: parsing template: %v", err)
 		fmt.Fprintf(w, "ERROR: parsing template: %v", err)
+		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
-	var codeChallenge *string
-	var codeChallengeMethod *string
-	if pkce := authorizeReq.Pkce; pkce != nil {
-		codeChallenge = &pkce.CodeChallenge
-		codeChallengeMethod = &pkce.CodeChallengeMethod
-	}
+	loginId := t.LoginId(util.RandomString(32))
+	t.AuthRequests[loginId] = authorizeReq
 	data := struct {
-		ClientId            string
-		RedirectUri         string
-		State               string
-		ResponseType        string
-		Scopes              []string
-		Name                string
-		Error               *string
-		CodeChallenge       *string
-		CodeChallengeMethod *string
+		LoginId string
+		Name    string
+		Scopes  []string
+		Error   *string
 	}{
-		ClientId:            authorizeReq.ClientId,
-		RedirectUri:         authorizeReq.RedirectUri,
-		State:               authorizeReq.State,
-		ResponseType:        authorizeReq.ResponseType,
-		Scopes:              authorizeReq.Scopes,
-		Name:                app.Name,
-		Error:               e,
-		CodeChallenge:       codeChallenge,
-		CodeChallengeMethod: codeChallengeMethod,
+		LoginId: string(loginId),
+		Name:    app.Name,
+		Scopes:  authorizeReq.Scopes,
+		Error:   e,
 	}
 	if err := tmpl.Execute(w, data); err != nil {
 		log.Printf("ERROR: executing template: %v", err)
 		fmt.Fprintf(w, "ERROR: executing template: %v", err)
+		w.WriteHeader(http.StatusInternalServerError)
 	}
 }
 
