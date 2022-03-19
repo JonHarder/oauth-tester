@@ -6,6 +6,7 @@ import (
 	"log"
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/JonHarder/oauth/internal/constants"
 	t "github.com/JonHarder/oauth/internal/types"
@@ -136,13 +137,13 @@ func generateAccessToken(app *t.Application, tokenReq v.TokenRequest) (*accessTo
 	}
 	if openId {
 		claims := jwt.MapClaims{
-			"iss": constants.ISSUER,
-			"sub": loginReq.User.Email,
-			"aud": app.Name,
-			// exp expiration time
-			// iat when was the token issued
-			// nbf time before which the token must not be accepted
-			"sur_name":    loginReq.User.Fname,
+			"iss":         constants.ISSUER,
+			"sub":         loginReq.User.Email,
+			"aud":         app.Name,
+			"exp":         time.Now().Add(time.Minute * 2).Unix(), // expiration time
+			"iat":         time.Now().Unix(),                      // when was the token issued
+			"nbf":         time.Now().Unix(),                      // time before which the token must not be accepted
+			"given_name":  loginReq.User.Fname,
 			"family_name": loginReq.User.Lname,
 		}
 		if loginReq.Nonce != nil {

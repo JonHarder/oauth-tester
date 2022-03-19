@@ -1,20 +1,41 @@
 * OAuth Client testing server
+This is a testing Open ID Connect compliant identity provider server. It aims to be particularly verbose in providing feedback to developers wishing to implement SSO using Open ID Connect into their service.
 ** Dependencies
 - go 1.17
+** Development Dependencies
+- CompileDaemeon :: Used for the local dev server with automatic server rebuilding.
+#+BEGIN_SRC sh
+go install github.com/githubnemo/CompileDaemon@latest
+#+END_SRC
 
 ** Building
 #+begin_src sh
-go build
+make
 #+end_src
+
+Alternatively, you can build and run the server with hot binary reloading using [[https://github.com/githubnemo/CompileDaemon][CompileDaemon]]
+#+BEGIN_SRC sh
+make dev
+#+END_SRC
+
+** Installing
+#+BEGIN_SRC sh
+make install
+#+END_SRC
 
 ** Running
 #+begin_src
-Usage of oauth:
+Usage of oauth-server:
   -path string
     	Configuration file containing applications and users (default "config.json")
   -port int
     	Port to run server on (default 8001)
 #+end_src
+
+** Test suite
+#+BEGIN_SRC sh
+make test
+#+END_SRC
 
 ** Configuration
 This reads from a =config.json= file, which expects an object with two
@@ -45,7 +66,7 @@ A list of objects, each of the form:
 #+end_src
 
 ** Enhancements
-*** TODO Better error reporting on invalid ~config.json~ file
-*** TODO Handle different =response_type= flows
-*** TODO Handle code challenge
-*** TODO Add nonce to =id_token=
+*** TODO handle refresh tokens
+*** TODO Dockerize
+*** TODO add config block to ~config.json~
+*** SOMEDAY Handle different =response_type= flows

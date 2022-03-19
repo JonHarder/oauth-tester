@@ -6,3 +6,6 @@ install:
 
 test:
 	go test ./...
+
+dev:
+	CompileDaemon -build="go build ./cmd/oauth-server" -command="./oauth-server"
