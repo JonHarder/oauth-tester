@@ -91,6 +91,10 @@ func main() {
 	http.HandleFunc("/login", handlers.LoginHandler)
 	http.HandleFunc("/authorize", handlers.AuthorizationHandler)
 	http.HandleFunc("/token", handlers.TokenHandler)
+	http.HandleFunc(
+		"/.wellknown/openid-configuration",
+		handlers.ConfigHandler,
+	)
 
 	log.Printf("Listening on http://localhost:%d", port)
 	if err := http.ListenAndServe(fmt.Sprintf(":%d", port), nil); err != nil {
