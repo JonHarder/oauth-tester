@@ -24,20 +24,29 @@ func init() {
 	rand.Seed(time.Now().UnixNano())
 }
 
+type Options struct {
+	port       int
+	configPath string
+}
+
+func parseOptions() Options {
+	options := Options{}
+	flag.IntVar(&options.port, "port", 8001, "Port to run server on")
+	flag.StringVar(&options.configPath, "config", "config.json", "Path to configuration file")
+	flag.Parse()
+	return options
+}
+
 // main is the entry point to the oauth-server.
 func main() {
-	var port int
-	var configPath string
-	flag.IntVar(&port, "port", 8001, "Port to run server on")
-	flag.StringVar(&configPath, "config", "config.json", "Path to the configuration file containing applications and users")
-	flag.Parse()
+	options := parseOptions()
 
 	html := util.BinPath("static", "login.html")
 	if _, err := os.Stat(html); errors.Is(err, os.ErrNotExist) {
 		log.Fatalf("ERROR: html file 'login.html' not found.")
 	}
 
-	config := config.ReadConfig(configPath)
+	config := config.ReadConfig(options.configPath)
 	log.Printf("========= SETTINGS ==============")
 	log.Printf("pkce enabled: %t", config.Settings.Pkce.Enabled)
 	if config.Settings.Pkce.Enabled {
@@ -63,9 +72,9 @@ func main() {
 		handlers.ConfigHandler,
 	)
 
-	log.Printf("Listening on http://localhost:%d", port)
-	log.Printf("Open ID Configuration endpoint: http://localhost:%d/.wellknown/openid-configuration", port)
-	if err := http.ListenAndServe(fmt.Sprintf(":%d", port), nil); err != nil {
+	log.Printf("Listening on http://localhost:%d", options.port)
+	log.Printf("Open ID Configuration endpoint: http://localhost:%d/.wellknown/openid-configuration", options.port)
+	if err := http.ListenAndServe(fmt.Sprintf(":%d", options.port), nil); err != nil {
 		log.Fatalf("Error starting server: %v", err)
 	}
 }
