@@ -11,12 +11,12 @@ func (p ParameterBag) Has(key string) bool {
 	return ok
 }
 
-func (p ParameterBag) Get(key string) *string {
+func (p ParameterBag) Get(key string, def string) string {
 	val, ok := p.Parameters[key]
 	if ok {
-		return &val
+		return val
 	} else {
-		return nil
+		return def
 	}
 }
 

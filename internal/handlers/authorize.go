@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/url"
 
+	"github.com/JonHarder/oauth/internal/config"
 	"github.com/JonHarder/oauth/internal/parameters"
 	t "github.com/JonHarder/oauth/internal/types"
 	"github.com/JonHarder/oauth/internal/util"
@@ -16,34 +17,36 @@ import (
 // handleAuthorizeRequest handles the /authorize requests made by an oauth2.0 client.
 // It does minimal validation, then presents the user with a login page requesting
 // access on behalf of the service provider.
-func AuthorizationHandler(w http.ResponseWriter, req *http.Request) {
-	params := parameters.NewFromQuery(req)
-	authReq, err := v.ValidateAuthorizeRequest(*params)
-	if err != nil {
-		w.WriteHeader(http.StatusBadRequest)
-		fmt.Fprintf(w, "%s: %s", err.ErrorCode, err.ErrorDescription)
-		return
-	}
-	log.Printf("authorize request: %v", authReq)
+func AuthorizationHandler(c config.Config) func(w http.ResponseWriter, req *http.Request) {
+	return func(w http.ResponseWriter, req *http.Request) {
+		params := parameters.NewFromQuery(req)
+		authReq, err := v.ValidateAuthorizeRequest(*params, c.Settings.Pkce.Enabled)
+		if err != nil {
+			w.WriteHeader(http.StatusBadRequest)
+			fmt.Fprintf(w, "%s: %s", err.ErrorCode, err.ErrorDescription)
+			return
+		}
+		log.Printf("authorize request: %v", authReq)
 
-	app, ok := t.Applications[authReq.ClientId]
-	if !ok {
-		HandleBadRequest(w, req, authReq.RedirectUri, v.ValidationError{
-			ErrorCode:        v.AuthErrorUnauthorizedClient,
-			ErrorDescription: fmt.Sprintf("No client configured with ID: %s", authReq.ClientId),
-		})
-		return
-	}
+		app, ok := t.Applications[authReq.ClientId]
+		if !ok {
+			HandleBadRequest(w, req, authReq.RedirectUri, v.ValidationError{
+				ErrorCode:        v.AuthErrorUnauthorizedClient,
+				ErrorDescription: fmt.Sprintf("No client configured with ID: %s", authReq.ClientId),
+			})
+			return
+		}
 
-	if app.Callback != authReq.RedirectUri {
-		HandleBadRequest(w, req, authReq.RedirectUri, v.ValidationError{
-			ErrorCode:        v.AuthErrorInvalidRequest,
-			ErrorDescription: "token reqirect_uri does not match authorization request",
-		})
-		return
-	}
+		if app.Callback != authReq.RedirectUri {
+			HandleBadRequest(w, req, authReq.RedirectUri, v.ValidationError{
+				ErrorCode:        v.AuthErrorInvalidRequest,
+				ErrorDescription: "token reqirect_uri does not match authorization request",
+			})
+			return
+		}
 
-	serveLogin(w, *authReq, app, nil)
+		serveLogin(w, *authReq, app, nil)
+	}
 }
 
 // loginHandler processes the login after the user logs in.
@@ -115,13 +118,9 @@ func LoginHandler(w http.ResponseWriter, req *http.Request) {
 // serveLogin displays the login form for the user.
 // It passes oauth information through as well.
 func serveLogin(w http.ResponseWriter, authorizeReq t.AuthorizeRequest, app *t.Application, e *string) {
-	tmpl, err := template.New("login.html").ParseFiles("login.html")
-	if err != nil {
-		log.Printf("ERROR: parsing template: %v", err)
-		fmt.Fprintf(w, "ERROR: parsing template: %v", err)
-		w.WriteHeader(http.StatusInternalServerError)
-		return
-	}
+	html := util.BinPath("static", "login.html")
+
+	tmpl := template.Must(template.New("login.html").ParseFiles(html))
 	loginId := t.LoginId(util.RandomString(32))
 	t.AuthRequests[loginId] = authorizeReq
 	data := struct {

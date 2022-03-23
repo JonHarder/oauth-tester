@@ -7,6 +7,7 @@ import (
 
 	"github.com/JonHarder/oauth/internal/parameters"
 	t "github.com/JonHarder/oauth/internal/types"
+	"github.com/JonHarder/oauth/internal/util"
 )
 
 type TokenRequest struct {
@@ -31,10 +32,64 @@ const AuthErrorInvalidGrant = "invalid_grant"
 const AuthErrorServerError = "server_error"
 const AuthErrorTemporarilyUnavailable = "temporarily_unavailable"
 
+func parsePkce(p parameters.ParameterBag, requirePkce bool) (*t.PKCE, *ValidationError) {
+	var pkce *t.PKCE = nil
+	codeChallenge, codeChallengeOk := p.Parameters["code_challenge"]
+	if !codeChallengeOk && requirePkce {
+		return nil, &ValidationError{
+			ErrorCode:        AuthErrorInvalidRequest,
+			ErrorDescription: "Server requires PKCE parameters but 'code_challenge' was not present",
+		}
+	}
+	if codeChallengeOk {
+		codeChallengeMethod := p.Get("code_challenge_method", "plain")
+		pkce = &t.PKCE{
+			CodeChallenge:       codeChallenge,
+			CodeChallengeMethod: codeChallengeMethod,
+		}
+	}
+	return pkce, nil
+}
+
+func ValidatePkce(pkce t.PKCE, tokenReq TokenRequest) *ValidationError {
+	switch pkce.CodeChallengeMethod {
+	case "S256":
+		computedChallenge := util.S256CodeChallenge(tokenReq.CodeVerifier)
+		if computedChallenge != pkce.CodeChallenge {
+			return &ValidationError{
+				ErrorCode: AuthErrorInvalidGrant,
+				ErrorDescription: fmt.Sprintf(
+					"PKCE computed code challenge using provided verifier: '%s' did not match challenge from auth req: %s",
+					tokenReq.CodeVerifier,
+					pkce.CodeChallenge,
+				),
+			}
+		}
+		break
+	case "plain":
+		if tokenReq.CodeVerifier != pkce.CodeChallenge {
+			return &ValidationError{
+				ErrorCode: AuthErrorInvalidGrant,
+				ErrorDescription: fmt.Sprintf(
+					"PKCE plain method verification failed, provided verifier did not match initial challenge: %s",
+					tokenReq.CodeVerifier,
+				),
+			}
+		}
+		break
+	default:
+		return &ValidationError{
+			ErrorCode:        AuthErrorInvalidRequest,
+			ErrorDescription: fmt.Sprintf("unknown code_challenge_method: %s", pkce.CodeChallengeMethod),
+		}
+	}
+	return nil
+}
+
 // ValidateAuthhorizeRequest takes incoming parameters and creates an AuthorizeRequest.
 // If there was an issue in parsing and validating, a ValidationError with information
 // pertaining to the issue will be retuned.
-func ValidateAuthorizeRequest(p parameters.ParameterBag) (*t.AuthorizeRequest, *ValidationError) {
+func ValidateAuthorizeRequest(p parameters.ParameterBag, requirePkce bool) (*t.AuthorizeRequest, *ValidationError) {
 	requiredParameters := []string{
 		"response_type",
 		"redirect_uri",
@@ -64,24 +119,9 @@ func ValidateAuthorizeRequest(p parameters.ParameterBag) (*t.AuthorizeRequest, *
 		scopes = scopes[:len(scopes)-1]
 	}
 
-	var pkce *t.PKCE = nil
-	codeChallenge, codeChallengeOk := p.Parameters["code_challenge"]
-	codeChallengeMethod, codeChallengeMethodOk := p.Parameters["code_challenge_method"]
-	if codeChallengeOk != codeChallengeMethodOk {
-		return nil, &ValidationError{
-			ErrorCode:        AuthErrorInvalidRequest,
-			ErrorDescription: "Both code_challenge and code_challenge_method are required if one provided",
-		}
-	} else if codeChallengeOk {
-		pkce = &t.PKCE{
-			CodeChallenge:       codeChallenge,
-			CodeChallengeMethod: codeChallengeMethod,
-		}
-	} else {
-		return nil, &ValidationError{
-			ErrorCode:        AuthErrorInvalidRequest,
-			ErrorDescription: "Missing required parameter: code_challenge",
-		}
+	pkce, err := parsePkce(p, requirePkce)
+	if err != nil {
+		return nil, err
 	}
 
 	return &t.AuthorizeRequest{

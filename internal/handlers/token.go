@@ -79,39 +79,10 @@ func generateAccessToken(app *t.Application, tokenReq v.TokenRequest) (*accessTo
 		}
 	}
 
-	// TODO: rip PKCE verification out into separate func (in validation maybe?)
 	if pkce := loginReq.Pkce; pkce != nil {
-		log.Printf("code_challenge: %s, code_verifier: %s", pkce.CodeChallenge, tokenReq.CodeVerifier)
-		switch pkce.CodeChallengeMethod {
-		case "S256":
-			computedChallenge := util.S256CodeChallenge(tokenReq.CodeVerifier)
-			if computedChallenge != pkce.CodeChallenge {
-				return nil, &v.ValidationError{
-					ErrorCode: v.AuthErrorInvalidGrant,
-					ErrorDescription: fmt.Sprintf(
-						"PKCE computed code challenge using provided verifier: '%s' did not match challenge from auth req: %s",
-						tokenReq.CodeVerifier,
-						pkce.CodeChallenge,
-					),
-				}
-			}
-			break
-		case "plain":
-			if tokenReq.CodeVerifier != pkce.CodeChallenge {
-				return nil, &v.ValidationError{
-					ErrorCode: v.AuthErrorInvalidGrant,
-					ErrorDescription: fmt.Sprintf(
-						"PKCE plain method verification failed, provided verifier did not match initial challenge: %s",
-						tokenReq.CodeVerifier,
-					),
-				}
-			}
-			break
-		default:
-			return nil, &v.ValidationError{
-				ErrorCode:        v.AuthErrorInvalidRequest,
-				ErrorDescription: fmt.Sprintf("unknown code_challenge_method: %s", pkce.CodeChallengeMethod),
-			}
+		err := v.ValidatePkce(*pkce, tokenReq)
+		if err != nil {
+			return nil, err
 		}
 	}
 
@@ -137,9 +108,9 @@ func generateAccessToken(app *t.Application, tokenReq v.TokenRequest) (*accessTo
 	}
 	if openId {
 		claims := jwt.MapClaims{
-			"iss":         constants.ISSUER,
-			"sub":         loginReq.User.Email,
-			"aud":         app.Name,
+			"iss":         constants.ISSUER,                       // Who issued this token
+			"sub":         loginReq.User.Email,                    // Identifier of the user this token represents
+			"aud":         app.Name,                               // Who is this token for
 			"exp":         time.Now().Add(time.Minute * 2).Unix(), // expiration time
 			"iat":         time.Now().Unix(),                      // when was the token issued
 			"nbf":         time.Now().Unix(),                      // time before which the token must not be accepted

@@ -4,6 +4,8 @@ import (
 	"crypto/sha256"
 	"encoding/base64"
 	"math/rand"
+	"os"
+	"path"
 )
 
 func RandomString(n int) string {
@@ -13,6 +15,16 @@ func RandomString(n int) string {
 		data[i] = letters[rand.Intn(len(letters))]
 	}
 	return string(data)
+}
+
+// BinPath creates a path relative to the binary directory.
+func BinPath(paths ...string) string {
+	e, err := os.Executable()
+	if err != nil {
+		panic(err)
+	}
+	paths = append([]string{path.Dir(e)}, paths...)
+	return path.Join(paths...)
 }
 
 func StrPtr(s string) *string {
