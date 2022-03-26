@@ -3,6 +3,7 @@ package validation
 import (
 	"fmt"
 	"net/http"
+	"net/url"
 	"strings"
 
 	"github.com/JonHarder/oauth/internal/parameters"
@@ -114,7 +115,14 @@ func ValidateAuthorizeRequest(p parameters.ParameterBag, requirePkce bool) (*t.A
 		}
 	}
 	scope := p.Parameters["scope"]
-	scopes := strings.Split(scope, " ")
+	decodedScope, decodeError := url.QueryUnescape(scope)
+	if decodeError != nil {
+		return nil, &ValidationError{
+			ErrorCode:        AuthErrorInvalidRequest,
+			ErrorDescription: decodeError.Error(),
+		}
+	}
+	scopes := strings.Split(decodedScope, " ")
 	if scopes[len(scopes)-1] == "" {
 		scopes = scopes[:len(scopes)-1]
 	}
@@ -134,7 +142,7 @@ func ValidateAuthorizeRequest(p parameters.ParameterBag, requirePkce bool) (*t.A
 	}, nil
 }
 
-func getBearerToken(header http.Header) (string, error) {
+func GetBearerToken(header http.Header) (string, error) {
 	bearer := header.Get("Authorization")
 	if bearer == "" {
 		return "", fmt.Errorf("missing Authorization header")
@@ -181,7 +189,7 @@ func ValidateTokenRequest(req *http.Request) (*TokenRequest, *ValidationError) {
 			ErrorDescription: "invalid grant_type only 'authorization_code' allowed",
 		}
 	}
-	clientSecret, err := getBearerToken(req.Header)
+	clientSecret, err := GetBearerToken(req.Header)
 	if err != nil {
 		return nil, &ValidationError{
 			ErrorCode:        AuthErrorInvalidRequest,

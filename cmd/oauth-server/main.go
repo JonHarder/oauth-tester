@@ -48,8 +48,8 @@ func main() {
 
 	config := config.ReadConfig(options.configPath)
 	log.Printf("========= SETTINGS ==============")
-	log.Printf("pkce enabled: %t", config.Settings.Pkce.Enabled)
-	if config.Settings.Pkce.Enabled {
+	log.Printf("pkce required: %t", config.Settings.Pkce.Required)
+	if config.Settings.Pkce.Required {
 		log.Printf(" - Allowed challenge methods: %v\n", config.Settings.Pkce.AllowedMethods)
 	}
 	for _, app := range config.Apps {
@@ -67,9 +67,10 @@ func main() {
 	http.HandleFunc("/login", handlers.LoginHandler)
 	http.HandleFunc("/authorize", handlers.AuthorizationHandler(*config))
 	http.HandleFunc("/token", handlers.TokenHandler)
+	http.HandleFunc("/userinfo", handlers.UserInfoHandler)
 	http.HandleFunc(
 		"/.wellknown/openid-configuration",
-		handlers.ConfigHandler,
+		handlers.OpenIDConfigHandler,
 	)
 
 	log.Printf("Listening on http://localhost:%d", options.port)

@@ -14,13 +14,13 @@ import (
 	v "github.com/JonHarder/oauth/internal/validation"
 )
 
-// handleAuthorizeRequest handles the /authorize requests made by an oauth2.0 client.
+// AuthorizationHandler handles the /authorize requests made by an oauth2.0 client.
 // It does minimal validation, then presents the user with a login page requesting
 // access on behalf of the service provider.
 func AuthorizationHandler(c config.Config) func(w http.ResponseWriter, req *http.Request) {
 	return func(w http.ResponseWriter, req *http.Request) {
 		params := parameters.NewFromQuery(req)
-		authReq, err := v.ValidateAuthorizeRequest(*params, c.Settings.Pkce.Enabled)
+		authReq, err := v.ValidateAuthorizeRequest(*params, c.Settings.Pkce.Required)
 		if err != nil {
 			w.WriteHeader(http.StatusBadRequest)
 			fmt.Fprintf(w, "%s: %s", err.ErrorCode, err.ErrorDescription)
