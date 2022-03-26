@@ -9,7 +9,7 @@ import (
 )
 
 type PkceSetting struct {
-	Enabled        bool     `json:"enabled"`
+	Required       bool     `json:"required"`
 	AllowedMethods []string `json:"allowed_methods"`
 }
 
@@ -49,9 +49,9 @@ func ReadConfig(path string) *Config {
 		}
 	}
 	for i, user := range config.Users {
-		if user.Email == "" || user.Fname == "" || user.Lname == "" || user.Password == "" {
+		if user.Email == "" || user.FamilyName == "" || user.GivenName == "" || user.Password == "" {
 			log.Fatalf(
-				"Invalid config.json: users[%d] is missing one of: email, password, fname, lname",
+				"Invalid config.json: users[%d] is missing one of: email, password, family_name, given_name",
 				i,
 			)
 		}

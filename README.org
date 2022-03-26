@@ -26,8 +26,8 @@ make install
 ** Running
 #+begin_src
 Usage of oauth-server:
-  -path string
-    	Configuration file containing applications and users (default "config.json")
+  -config string
+    	Path to configuration file (default "config.json")
   -port int
     	Port to run server on (default 8001)
 #+end_src
@@ -37,9 +37,14 @@ Usage of oauth-server:
 make test
 #+END_SRC
 
+** Documentation
+[[file:Docs.org][link]]
+
 ** Configuration
 This reads from a =config.json= file, which expects an object with two
 keys: ~applications~, and ~users~.
+
+In addition to these, an optional ~settings~ key will be read if provided which configures the various features of the server
 
 *** applications
 A list of objects, each of the form:
@@ -60,13 +65,54 @@ A list of objects, each of the form:
 {
   "email": "email",
   "password": "string",
-  "fname": "string",
-  "lname": "string"
+  "family_name": "string",
+  "given_name": "string"
 }
 #+end_src
 
+*** settings
+An object of the form:
+
+#+BEGIN_SRC json
+{
+  "pkce": {
+    "required": "bool",
+    "allowed_code_challenge_methods": ["string"]
+  }
+}
+#+END_SRC
+
+**** =pkce.required= 
+This instructs the authorization server whether or not to enforce PKCE verification. When set to =true=, any authorization request that does not contain a =code_challenge= will immediately fail.
+
+If set to false, authorize requests will not fail if =code_challenge= is not provided, however, if a client does provide a =code_challenge=, it will be verified in the token exchange using the =code_verifier= and can still fail if the verifier is not valid.
+
+**** =pkce.allowed_code_challenge_methods=
+*NOTE* /currently not supported/
+
+This is a list of allowed =code_challenge_method= values. If an authorize request provides a =code_challenge_method= not present in this list, the request will be rejected.
+
 ** Enhancements
-*** INPROGRESS Dockerize
+*** TODO Auto login if session exists
+
 *** TODO handle refresh tokens
-*** TODO add config block to ~config.json~
+- 
+*** TODO store =state= cryptographically secured in browser cookie
+*** TODO Implement scope access test endpoint
+- using auth header, determine if the requested content is allowed to access it given the scopes it was authorized for
+#+BEGIN_SRC restclient
+GET http://localhost:8001/scope-test?resource=foo
+Authorization: Bearer as98htaiOIENas89398wtMTCCDpu7
+#+END_SRC
+
+should respond with 403 if authorize request did not contain the ~foo~ scope.
+
+*** TODO Handle RS256 JWT signing alg
+**** TODO need to provide jwks url
+*** TODO Integrate a server framework
+- need to do some research to find a suitable one
+*** TODO verify =code_challenge_method= against ~settings.pkce.allowed_methods~
 *** SOMEDAY Handle different =response_type= flows
+*** DONE handle user information endpoint
+*** DONE add config block to ~config.json~
+*** DONE Dockerize

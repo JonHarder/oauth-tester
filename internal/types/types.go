@@ -1,5 +1,7 @@
 package types
 
+import "time"
+
 type Code string
 
 type Email string
@@ -24,10 +26,10 @@ type Application struct {
 }
 
 type User struct {
-	Email    Email  `json:"email"`
-	Password string `json:"password"`
-	Fname    string `json:"fname"`
-	Lname    string `json:"lname"`
+	Email      Email  `json:"email"`
+	Password   string `json:"password"`
+	FamilyName string `json:"family_name"`
+	GivenName  string `json:"given_name"`
 }
 
 // Convience struct used to store information
@@ -51,7 +53,34 @@ type LoginRequest struct {
 	Pkce        *PKCE
 }
 
+func (req LoginRequest) ContainsScope(scope string) bool {
+	for _, s := range req.Scopes {
+		if s == scope {
+			return true
+		}
+	}
+	return false
+}
+
+type TokenResponse struct {
+	AccessToken string `json:"access_token"`
+	TokenType   string `json:"token_type"`
+	ExpiresIn   int    `json:"expires_in"`
+	Scope       string `json:"scope"`
+	IdToken     string `json:"id_token"`
+}
+
 type LoginId string
+
+type Session struct {
+	Token       TokenResponse
+	User        User
+	TimeGranted time.Time
+}
+
+func (s *Session) Expired() bool {
+	return time.Since(s.TimeGranted) > time.Second*time.Duration(s.Token.ExpiresIn)
+}
 
 var (
 	Applications  map[string]*Application
@@ -63,6 +92,10 @@ var (
 	// to be threaded back and forth through the form
 	// itself in `hidden' inputs.
 	AuthRequests map[LoginId]AuthorizeRequest
+	// a map of access_token to Session structs
+	// this tracks users who have granted an application
+	// permission to this system
+	Sessions map[string]Session
 )
 
 func init() {
@@ -70,4 +103,5 @@ func init() {
 	Users = make(map[Email]*User)
 	LoginRequests = make(map[Code]*LoginRequest)
 	AuthRequests = make(map[LoginId]AuthorizeRequest)
+	Sessions = make(map[string]Session)
 }

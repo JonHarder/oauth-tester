@@ -15,14 +15,6 @@ import (
 	"github.com/golang-jwt/jwt"
 )
 
-type accessToken struct {
-	AccessToken string `json:"access_token"`
-	TokenType   string `json:"token_type"`
-	ExpiresIn   int    `json:"expires_in"`
-	Scope       string `json:"scope"`
-	IdToken     string `json:"id_token"`
-}
-
 // tokenHandler handles the /token request by exchanging the access code for an access token.
 func TokenHandler(w http.ResponseWriter, req *http.Request) {
 	tokenRequest, err := v.ValidateTokenRequest(req)
@@ -63,7 +55,7 @@ func TokenHandler(w http.ResponseWriter, req *http.Request) {
 
 // generateAccessToken creates the access_token, including the id_token for
 // OIDC requests.
-func generateAccessToken(app *t.Application, tokenReq v.TokenRequest) (*accessToken, *v.ValidationError) {
+func generateAccessToken(app *t.Application, tokenReq v.TokenRequest) (*t.TokenResponse, *v.ValidationError) {
 	loginReq, ok := t.LoginRequests[tokenReq.Code]
 	if !ok {
 		return nil, &v.ValidationError{
@@ -92,19 +84,18 @@ func generateAccessToken(app *t.Application, tokenReq v.TokenRequest) (*accessTo
 			ErrorDescription: "invalid client_secret",
 		}
 	}
-	openId := false
-	for _, scope := range loginReq.Scopes {
-		if scope == "openid" {
-			openId = true
-			break
-		}
-	}
+	openId := loginReq.ContainsScope("openid")
 	log.Printf("generating access token: scopes: %v", loginReq.Scopes)
-	resp := accessToken{
+	resp := t.TokenResponse{
 		AccessToken: util.RandomString(32),
 		TokenType:   "Bearer",
 		ExpiresIn:   86400,
 		Scope:       strings.Join(loginReq.Scopes, " "),
+	}
+	t.Sessions[resp.AccessToken] = t.Session{
+		Token:       resp,
+		User:        *loginReq.User,
+		TimeGranted: time.Now(),
 	}
 	if openId {
 		claims := jwt.MapClaims{
@@ -114,8 +105,8 @@ func generateAccessToken(app *t.Application, tokenReq v.TokenRequest) (*accessTo
 			"exp":         time.Now().Add(time.Minute * 2).Unix(), // expiration time
 			"iat":         time.Now().Unix(),                      // when was the token issued
 			"nbf":         time.Now().Unix(),                      // time before which the token must not be accepted
-			"given_name":  loginReq.User.Fname,
-			"family_name": loginReq.User.Lname,
+			"given_name":  loginReq.User.GivenName,
+			"family_name": loginReq.User.FamilyName,
 		}
 		if loginReq.Nonce != nil {
 			claims["nonce"] = *loginReq.Nonce

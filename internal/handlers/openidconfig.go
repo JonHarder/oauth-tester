@@ -20,7 +20,7 @@ var Configuration = OpenIdConfiguration{
 	TokenEndpoint:         constants.ISSUER + "/token",
 }
 
-func ConfigHandler(w http.ResponseWriter, req *http.Request) {
+func OpenIDConfigHandler(w http.ResponseWriter, req *http.Request) {
 	data, err := json.Marshal(Configuration)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
