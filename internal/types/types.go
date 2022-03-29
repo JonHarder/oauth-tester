@@ -1,6 +1,10 @@
 package types
 
-import "time"
+import (
+	"time"
+
+	"github.com/JonHarder/oauth/internal/oauth/pkce"
+)
 
 type Code string
 
@@ -12,7 +16,7 @@ type AuthorizeRequest struct {
 	RedirectUri  string
 	ResponseType string
 	State        string
-	Pkce         *PKCE
+	Pkce         *pkce.PKCE
 	Scopes       []string
 }
 
@@ -32,14 +36,6 @@ type User struct {
 	GivenName  string `json:"given_name"`
 }
 
-// Convience struct used to store information
-// specific to the PKCE extension to the authorization
-// code flow.
-type PKCE struct {
-	CodeChallenge       string
-	CodeChallengeMethod string
-}
-
 // Used to store information about an OAuth login
 // request between the authorization step and the
 // token exchange step
@@ -50,7 +46,7 @@ type LoginRequest struct {
 	Scopes      []string
 	Redirect    string
 	Nonce       *string
-	Pkce        *PKCE
+	Pkce        *pkce.PKCE
 }
 
 func (req LoginRequest) ContainsScope(scope string) bool {
@@ -63,11 +59,17 @@ func (req LoginRequest) ContainsScope(scope string) bool {
 }
 
 type TokenResponse struct {
+	// long lived refresh_token to grant new access_tokens.
+	RefreshToken string `json:"refresh_token,omitempty"`
+	// Token which grants access to the requested scopes.
 	AccessToken string `json:"access_token"`
 	TokenType   string `json:"token_type"`
-	ExpiresIn   int    `json:"expires_in"`
-	Scope       string `json:"scope"`
-	IdToken     string `json:"id_token"`
+	// How many seconds the token is valid for.
+	ExpiresIn int `json:"expires_in"`
+	// What scopes the token was granted access to.
+	Scope string `json:"scope,omitempty"`
+	// OpenID Connect Id Token.
+	IdToken string `json:"id_token,omitempty"`
 }
 
 type LoginId string
@@ -80,6 +82,12 @@ type Session struct {
 
 func (s *Session) Expired() bool {
 	return time.Since(s.TimeGranted) > time.Second*time.Duration(s.Token.ExpiresIn)
+}
+
+type RefreshRecord struct {
+	TimeGranted time.Time
+	App         Application
+	User        User
 }
 
 var (
@@ -96,6 +104,8 @@ var (
 	// this tracks users who have granted an application
 	// permission to this system
 	Sessions map[string]Session
+	// a map of refresh_tokens to the the record of when it was granted.
+	RefreshTokens map[string]RefreshRecord
 )
 
 func init() {
@@ -104,4 +114,5 @@ func init() {
 	LoginRequests = make(map[Code]*LoginRequest)
 	AuthRequests = make(map[LoginId]AuthorizeRequest)
 	Sessions = make(map[string]Session)
+	RefreshTokens = make(map[string]RefreshRecord)
 }

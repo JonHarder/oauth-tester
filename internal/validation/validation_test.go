@@ -8,7 +8,7 @@ import (
 func TestGetBearerToken(t *testing.T) {
 	header := make(http.Header)
 	header.Set("Authorization", "Bearer super_secret")
-	got, err := getBearerToken(header)
+	got, err := GetBearerToken(header)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -20,7 +20,7 @@ func TestGetBearerToken(t *testing.T) {
 
 func TestGetBearerTokenWithMissingHeader(t *testing.T) {
 	header := make(http.Header)
-	_, err := getBearerToken(header)
+	_, err := GetBearerToken(header)
 	if err == nil {
 		t.Fatalf("getBearerToken should fail when no Authorization header is present.")
 	}
@@ -29,7 +29,7 @@ func TestGetBearerTokenWithMissingHeader(t *testing.T) {
 func TestGetBearerTokenWithNonBearer(t *testing.T) {
 	header := make(http.Header)
 	header.Set("Authorization", "foobar")
-	_, err := getBearerToken(header)
+	_, err := GetBearerToken(header)
 	if err == nil {
 		t.Fatalf("getBearerToken should fail when Authorization header is not Bearer.")
 	}

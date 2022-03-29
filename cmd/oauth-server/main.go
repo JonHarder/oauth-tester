@@ -64,14 +64,17 @@ func main() {
 	}
 	log.Printf("======== END SETTINGS =========")
 
-	http.HandleFunc("/login", handlers.LoginHandler)
+	// Routes
 	http.HandleFunc("/authorize", handlers.AuthorizationHandler(*config))
+	http.HandleFunc("/login", handlers.LoginHandler)
 	http.HandleFunc("/token", handlers.TokenHandler)
+
 	http.HandleFunc("/userinfo", handlers.UserInfoHandler)
 	http.HandleFunc(
 		"/.wellknown/openid-configuration",
 		handlers.OpenIDConfigHandler,
 	)
+	// End Routes
 
 	log.Printf("Listening on http://localhost:%d", options.port)
 	log.Printf("Open ID Configuration endpoint: http://localhost:%d/.wellknown/openid-configuration", options.port)

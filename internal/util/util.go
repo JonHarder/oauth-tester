@@ -28,8 +28,8 @@ func BinPath(paths ...string) string {
 }
 
 func StrPtr(s string) *string {
-	s = s
-	return &s
+	str := s
+	return &str
 }
 
 func s256(s string) []byte {

@@ -2,27 +2,19 @@ package validation
 
 import (
 	"fmt"
+	"log"
 	"net/http"
 	"net/url"
 	"strings"
+	"time"
 
+	"github.com/JonHarder/oauth/internal/constants"
+	"github.com/JonHarder/oauth/internal/oauth/pkce"
 	"github.com/JonHarder/oauth/internal/parameters"
 	t "github.com/JonHarder/oauth/internal/types"
 	"github.com/JonHarder/oauth/internal/util"
+	"github.com/golang-jwt/jwt"
 )
-
-type TokenRequest struct {
-	ClientId     string
-	ClientSecret string
-	RedirectUri  string
-	Code         t.Code
-	CodeVerifier string
-}
-
-type ValidationError struct {
-	ErrorCode        string
-	ErrorDescription string
-}
 
 const AuthErrorInvalidRequest = "invalid_request"
 const AuthErrorUnauthorizedClient = "unauthorized_client"
@@ -33,58 +25,138 @@ const AuthErrorInvalidGrant = "invalid_grant"
 const AuthErrorServerError = "server_error"
 const AuthErrorTemporarilyUnavailable = "temporarily_unavailable"
 
-func parsePkce(p parameters.ParameterBag, requirePkce bool) (*t.PKCE, *ValidationError) {
-	var pkce *t.PKCE = nil
-	codeChallenge, codeChallengeOk := p.Parameters["code_challenge"]
-	if !codeChallengeOk && requirePkce {
-		return nil, &ValidationError{
-			ErrorCode:        AuthErrorInvalidRequest,
-			ErrorDescription: "Server requires PKCE parameters but 'code_challenge' was not present",
-		}
-	}
-	if codeChallengeOk {
-		codeChallengeMethod := p.Get("code_challenge_method", "plain")
-		pkce = &t.PKCE{
-			CodeChallenge:       codeChallenge,
-			CodeChallengeMethod: codeChallengeMethod,
-		}
-	}
-	return pkce, nil
+type TokenRequest interface {
+	CreateTokenResponse(app t.Application) (*t.TokenResponse, *ValidationError)
+	GetClientId() string
 }
 
-func ValidatePkce(pkce t.PKCE, tokenReq TokenRequest) *ValidationError {
-	switch pkce.CodeChallengeMethod {
-	case "S256":
-		computedChallenge := util.S256CodeChallenge(tokenReq.CodeVerifier)
-		if computedChallenge != pkce.CodeChallenge {
-			return &ValidationError{
-				ErrorCode: AuthErrorInvalidGrant,
-				ErrorDescription: fmt.Sprintf(
-					"PKCE computed code challenge using provided verifier: '%s' did not match challenge from auth req: %s",
-					tokenReq.CodeVerifier,
-					pkce.CodeChallenge,
-				),
-			}
-		}
-		break
-	case "plain":
-		if tokenReq.CodeVerifier != pkce.CodeChallenge {
-			return &ValidationError{
-				ErrorCode: AuthErrorInvalidGrant,
-				ErrorDescription: fmt.Sprintf(
-					"PKCE plain method verification failed, provided verifier did not match initial challenge: %s",
-					tokenReq.CodeVerifier,
-				),
-			}
-		}
-		break
-	default:
-		return &ValidationError{
-			ErrorCode:        AuthErrorInvalidRequest,
-			ErrorDescription: fmt.Sprintf("unknown code_challenge_method: %s", pkce.CodeChallengeMethod),
+// Ensure each TokenRequest implementation actually implements
+// the required methods of the interface
+var _ TokenRequest = (*TokenAuthCodeRequest)(nil)
+var _ TokenRequest = (*TokenRefreshTokenRequest)(nil)
+
+type TokenAuthCodeRequest struct {
+	ClientId     string
+	ClientSecret string
+	RedirectUri  string
+	Code         t.Code
+	CodeVerifier *string
+}
+
+type TokenRefreshTokenRequest struct {
+	RefreshToken string
+	ClientId     string
+	ClientSecret string
+}
+
+func (req TokenRefreshTokenRequest) CreateTokenResponse(app t.Application) (*t.TokenResponse, *ValidationError) {
+	if app.ClientSecret != req.ClientSecret {
+		return nil, &ValidationError{
+			ErrorCode:        AuthErrorServerError,
+			ErrorDescription: "invalid client_secret",
 		}
 	}
-	return nil
+	refreshSession, ok := t.RefreshTokens[req.RefreshToken]
+	if !ok {
+		return nil, &ValidationError{
+			ErrorCode:        AuthErrorServerError,
+			ErrorDescription: "unknown refresh_token",
+		}
+	}
+	if time.Since(refreshSession.TimeGranted) > time.Second*time.Duration(8600) {
+		return nil, &ValidationError{
+			ErrorCode:        AuthErrorServerError,
+			ErrorDescription: "expired refresh_token",
+		}
+	}
+	return &t.TokenResponse{
+		AccessToken: util.RandomString(32),
+		TokenType:   "Bearer",
+		ExpiresIn:   3600,
+	}, nil
+}
+
+func (req TokenRefreshTokenRequest) GetClientId() string {
+	return req.ClientId
+}
+
+func (req TokenAuthCodeRequest) CreateTokenResponse(app t.Application) (*t.TokenResponse, *ValidationError) {
+	if err := verifyRedirectUri(app, req); err != nil {
+		return nil, err
+	}
+	loginReq, ok := t.LoginRequests[req.Code]
+	if !ok {
+		return nil, &ValidationError{
+			ErrorCode:        AuthErrorInvalidRequest,
+			ErrorDescription: "redirect_uri does not match the authorization request",
+		}
+	}
+	if pk := loginReq.Pkce; pk != nil {
+		if err := pkce.ValidatePkce(*pk, *req.CodeVerifier); err != nil {
+			return nil, &ValidationError{
+				ErrorCode:        AuthErrorInvalidRequest,
+				ErrorDescription: err.Error(),
+			}
+		}
+	}
+	if req.ClientSecret != app.ClientSecret {
+		return nil, &ValidationError{
+			ErrorCode:        AuthErrorInvalidRequest,
+			ErrorDescription: "invalid client_secret",
+		}
+	}
+	resp := t.TokenResponse{
+		AccessToken: util.RandomString(32),
+		TokenType:   "Bearer",
+		ExpiresIn:   3600,
+		Scope:       strings.Join(loginReq.Scopes, " "),
+	}
+	if loginReq.ContainsScope("openid") {
+		token := generateIdToken(*loginReq, app)
+		tokenStr, signingErr := token.SignedString([]byte(req.ClientSecret))
+		if signingErr != nil {
+			return nil, &ValidationError{
+				ErrorCode:        AuthErrorServerError,
+				ErrorDescription: fmt.Sprintf("%v", signingErr),
+			}
+		}
+		resp.IdToken = tokenStr
+	}
+	if loginReq.ContainsScope("offline_access") {
+		resp.RefreshToken = util.RandomString(32)
+		t.RefreshTokens[resp.RefreshToken] = t.RefreshRecord{
+			TimeGranted: time.Now(),
+			App:         app,
+			User:        *loginReq.User,
+		}
+	}
+	return &resp, nil
+}
+
+func (req TokenAuthCodeRequest) GetClientId() string {
+	return req.ClientId
+}
+
+type ValidationError struct {
+	ErrorCode        string `json:"error"`
+	ErrorDescription string `json:"error_description"`
+}
+
+func generateIdToken(loginReq t.LoginRequest, app t.Application) *jwt.Token {
+	claims := jwt.MapClaims{
+		"iss":         constants.ISSUER,                       // Who issued this token
+		"sub":         loginReq.User.Email,                    // Identifier of the user this token represents
+		"aud":         app.Name,                               // Who is this token for
+		"exp":         time.Now().Add(time.Minute * 2).Unix(), // expiration time
+		"iat":         time.Now().Unix(),                      // when was the token issued
+		"nbf":         time.Now().Unix(),                      // time before which the token must not be accepted
+		"given_name":  loginReq.User.GivenName,                // A.K.A first name
+		"family_name": loginReq.User.FamilyName,               // A.K.A last name
+	}
+	if loginReq.Nonce != nil {
+		claims["nonce"] = *loginReq.Nonce
+	}
+	return jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
 }
 
 // ValidateAuthhorizeRequest takes incoming parameters and creates an AuthorizeRequest.
@@ -103,7 +175,7 @@ func ValidateAuthorizeRequest(p parameters.ParameterBag, requirePkce bool) (*t.A
 		if !p.Has(param) {
 			return nil, &ValidationError{
 				ErrorCode:        AuthErrorInvalidRequest,
-				ErrorDescription: fmt.Sprintf("missing required parameter %s", param),
+				ErrorDescription: fmt.Sprintf("missing required parameter: %s", param),
 			}
 		}
 	}
@@ -127,9 +199,12 @@ func ValidateAuthorizeRequest(p parameters.ParameterBag, requirePkce bool) (*t.A
 		scopes = scopes[:len(scopes)-1]
 	}
 
-	pkce, err := parsePkce(p, requirePkce)
+	pkce, err := pkce.ParsePkce(p, requirePkce)
 	if err != nil {
-		return nil, err
+		return nil, &ValidationError{
+			ErrorCode:        AuthErrorInvalidRequest,
+			ErrorDescription: err.Error(),
+		}
 	}
 
 	return &t.AuthorizeRequest{
@@ -157,8 +232,8 @@ func GetBearerToken(header http.Header) (string, error) {
 	return parts[1], nil
 }
 
-// ValidateTokenRequest
-func ValidateTokenRequest(req *http.Request) (*TokenRequest, *ValidationError) {
+// ValidateTokenRequest parses and validates a request for the token endpoint.
+func ValidateTokenRequest(req *http.Request) (TokenRequest, *ValidationError) {
 	params, err := parameters.NewFromForm(req)
 	if err != nil {
 		return nil, &ValidationError{
@@ -166,49 +241,77 @@ func ValidateTokenRequest(req *http.Request) (*TokenRequest, *ValidationError) {
 			ErrorDescription: fmt.Sprintf("failed to parse form: %s", err.Error()),
 		}
 	}
-	requiredParameters := []string{
-		"grant_type",
-		"code",
-		"redirect_uri",
-		"client_id",
-		"code_verifier",
-	}
-	for _, param := range requiredParameters {
-		if !params.Has(param) {
-			return nil, &ValidationError{
-				ErrorCode:        AuthErrorInvalidRequest,
-				ErrorDescription: "missing required parameter " + param,
-			}
-		}
-	}
 
 	grantType := params.Parameters["grant_type"]
-	if grantType != "authorization_code" {
-		return nil, &ValidationError{
-			ErrorCode:        AuthErrorInvalidRequest,
-			ErrorDescription: "invalid grant_type only 'authorization_code' allowed",
+	log.Printf("Validating Token request with grant_type: %s", grantType)
+	switch grantType {
+	case "refresh_token":
+		requiredParams := []string{
+			"client_id",
+			"client_secret",
+			"refresh_token",
 		}
-	}
-	clientSecret, err := GetBearerToken(req.Header)
-	if err != nil {
+		for _, p := range requiredParams {
+			if !params.Has(p) {
+				return nil, &ValidationError{
+					ErrorCode:        AuthErrorInvalidRequest,
+					ErrorDescription: fmt.Sprintf("bad refresh_token request, missing: %s", p),
+				}
+			}
+		}
+		return TokenRefreshTokenRequest{
+			RefreshToken: params.Parameters["refresh_token"],
+			ClientId:     params.Parameters["client_id"],
+			ClientSecret: params.Parameters["client_secret"],
+		}, nil
+
+	case "authorization_code":
+		clientSecret, err := GetBearerToken(req.Header)
+		if err != nil {
+			return nil, &ValidationError{
+				ErrorCode:        AuthErrorInvalidRequest,
+				ErrorDescription: err.Error(),
+			}
+		}
+
+		requiredParams := []string{
+			"code",
+			"redirect_uri",
+			"client_id",
+		}
+		for _, p := range requiredParams {
+			if !params.Has(p) {
+				return nil, &ValidationError{
+					ErrorCode:        AuthErrorInvalidRequest,
+					ErrorDescription: fmt.Sprintf("Bad token request, missing query parameter: %s", p),
+				}
+			}
+		}
+		code := t.Code(params.Parameters["code"])
+		var codeVerifier *string = nil
+		if c := params.Parameters["code_verifier"]; c != "" {
+			codeVerifier = &c
+		}
+		return TokenAuthCodeRequest{
+			ClientId:     params.Parameters["client_id"],
+			ClientSecret: clientSecret,
+			RedirectUri:  params.Parameters["redirect_uri"],
+			Code:         code,
+			CodeVerifier: codeVerifier,
+		}, nil
+
+	default:
 		return nil, &ValidationError{
 			ErrorCode:        AuthErrorInvalidRequest,
-			ErrorDescription: err.Error(),
+			ErrorDescription: "invalid grant_type: " + grantType,
 		}
 	}
 
-	return &TokenRequest{
-		ClientId:     params.Parameters["client_id"],
-		ClientSecret: clientSecret,
-		RedirectUri:  params.Parameters["redirect_uri"],
-		Code:         t.Code(params.Parameters["code"]),
-		CodeVerifier: params.Parameters["code_verifier"],
-	}, nil
 }
 
 // verifyRedirectUri checks that the requested redirect_uri matches the one registered with the application
-func VerifyRedirectUri(app t.Application, tokenReq TokenRequest) *ValidationError {
-	if tokenReq.RedirectUri != app.Callback {
+func verifyRedirectUri(app t.Application, req TokenAuthCodeRequest) *ValidationError {
+	if req.RedirectUri != app.Callback {
 		return &ValidationError{
 			ErrorCode:        AuthErrorInvalidRequest,
 			ErrorDescription: "provided redirect_uri does not match registered uri",
