@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"net/http"
 
-	t "github.com/JonHarder/oauth/internal/types"
+	"github.com/JonHarder/oauth/internal/db"
 	v "github.com/JonHarder/oauth/internal/validation"
 )
 
@@ -17,7 +17,7 @@ func TokenHandler(w http.ResponseWriter, req *http.Request) {
 		fmt.Fprintf(w, "Bad token exchange request: %v", err)
 		return
 	}
-	app, ok := t.Applications[tokenRequest.GetClientId()]
+	app, ok := db.Applications[tokenRequest.GetClientId()]
 	if !ok {
 		w.WriteHeader(http.StatusBadRequest)
 		fmt.Fprintf(w, "unknown client_id")

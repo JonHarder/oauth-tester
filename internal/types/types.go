@@ -89,30 +89,3 @@ type RefreshRecord struct {
 	App         Application
 	User        User
 }
-
-var (
-	Applications  map[string]*Application
-	Users         map[Email]*User
-	LoginRequests map[Code]*LoginRequest
-	// This is used to track an authorization request
-	// while the authorization form is presented to the
-	// user so that the request parameters don't need
-	// to be threaded back and forth through the form
-	// itself in `hidden' inputs.
-	AuthRequests map[LoginId]AuthorizeRequest
-	// a map of access_token to Session structs
-	// this tracks users who have granted an application
-	// permission to this system
-	Sessions map[string]Session
-	// a map of refresh_tokens to the the record of when it was granted.
-	RefreshTokens map[string]RefreshRecord
-)
-
-func init() {
-	Applications = make(map[string]*Application)
-	Users = make(map[Email]*User)
-	LoginRequests = make(map[Code]*LoginRequest)
-	AuthRequests = make(map[LoginId]AuthorizeRequest)
-	Sessions = make(map[string]Session)
-	RefreshTokens = make(map[string]RefreshRecord)
-}

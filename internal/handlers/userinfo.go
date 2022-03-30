@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"net/http"
 
-	t "github.com/JonHarder/oauth/internal/types"
+	"github.com/JonHarder/oauth/internal/db"
 	v "github.com/JonHarder/oauth/internal/validation"
 )
 
@@ -28,7 +28,7 @@ func UserInfoHandler(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	session, ok := t.Sessions[token]
+	session, ok := db.Sessions[token]
 	if !ok {
 		w.WriteHeader(http.StatusNotFound)
 		fmt.Fprintf(w, "access_token not associated with active session")
@@ -37,7 +37,7 @@ func UserInfoHandler(w http.ResponseWriter, req *http.Request) {
 
 	if session.Expired() {
 		// clean up after ourselves since the token is expired
-		delete(t.Sessions, token)
+		delete(db.Sessions, token)
 		w.WriteHeader(http.StatusNotFound)
 		fmt.Fprintf(w, "access_token expired")
 		return

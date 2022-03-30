@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/JonHarder/oauth/internal/constants"
+	"github.com/JonHarder/oauth/internal/db"
 	"github.com/JonHarder/oauth/internal/oauth/pkce"
 	"github.com/JonHarder/oauth/internal/parameters"
 	t "github.com/JonHarder/oauth/internal/types"
@@ -56,7 +57,7 @@ func (req TokenRefreshTokenRequest) CreateTokenResponse(app t.Application) (*t.T
 			ErrorDescription: "invalid client_secret",
 		}
 	}
-	refreshSession, ok := t.RefreshTokens[req.RefreshToken]
+	refreshSession, ok := db.RefreshTokens[req.RefreshToken]
 	if !ok {
 		return nil, &ValidationError{
 			ErrorCode:        AuthErrorServerError,
@@ -84,7 +85,7 @@ func (req TokenAuthCodeRequest) CreateTokenResponse(app t.Application) (*t.Token
 	if err := verifyRedirectUri(app, req); err != nil {
 		return nil, err
 	}
-	loginReq, ok := t.LoginRequests[req.Code]
+	loginReq, ok := db.LoginRequests[req.Code]
 	if !ok {
 		return nil, &ValidationError{
 			ErrorCode:        AuthErrorInvalidRequest,
@@ -124,7 +125,7 @@ func (req TokenAuthCodeRequest) CreateTokenResponse(app t.Application) (*t.Token
 	}
 	if loginReq.ContainsScope("offline_access") {
 		resp.RefreshToken = util.RandomString(32)
-		t.RefreshTokens[resp.RefreshToken] = t.RefreshRecord{
+		db.RefreshTokens[resp.RefreshToken] = t.RefreshRecord{
 			TimeGranted: time.Now(),
 			App:         app,
 			User:        *loginReq.User,

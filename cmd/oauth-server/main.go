@@ -11,8 +11,8 @@ import (
 	"time"
 
 	"github.com/JonHarder/oauth/internal/config"
+	"github.com/JonHarder/oauth/internal/db"
 	"github.com/JonHarder/oauth/internal/handlers"
-	t "github.com/JonHarder/oauth/internal/types"
 	"github.com/JonHarder/oauth/internal/util"
 )
 
@@ -54,13 +54,13 @@ func main() {
 	}
 	for _, app := range config.Apps {
 		app := app
-		t.Applications[app.ClientId] = &app
+		db.Applications[app.ClientId] = &app
 		log.Printf("Applications configured:")
 		log.Printf(" - Name: '%s': Client ID: '%s'", app.Name, app.ClientId)
 	}
 	for _, u := range config.Users {
 		u := u
-		t.Users[u.Email] = &u
+		db.Users[u.Email] = &u
 	}
 	log.Printf("======== END SETTINGS =========")
 

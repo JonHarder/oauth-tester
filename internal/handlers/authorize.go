@@ -8,6 +8,7 @@ import (
 	"net/url"
 
 	"github.com/JonHarder/oauth/internal/config"
+	"github.com/JonHarder/oauth/internal/db"
 	"github.com/JonHarder/oauth/internal/parameters"
 	t "github.com/JonHarder/oauth/internal/types"
 	"github.com/JonHarder/oauth/internal/util"
@@ -28,7 +29,7 @@ func AuthorizationHandler(c config.Config) func(w http.ResponseWriter, req *http
 		}
 		log.Printf("authorize request: %v", authReq)
 
-		app, ok := t.Applications[authReq.ClientId]
+		app, ok := db.Applications[authReq.ClientId]
 		if !ok {
 			HandleBadRequest(w, req, authReq.RedirectUri, v.ValidationError{
 				ErrorCode:        v.AuthErrorUnauthorizedClient,
@@ -67,7 +68,7 @@ func LoginHandler(w http.ResponseWriter, req *http.Request) {
 		fmt.Fprintf(w, "missing login_id")
 		return
 	}
-	authReq, ok := t.AuthRequests[t.LoginId(loginId)]
+	authReq, ok := db.AuthRequests[t.LoginId(loginId)]
 	if !ok {
 		w.WriteHeader(http.StatusBadRequest)
 		fmt.Fprintf(w, "unknown login request, login_id not found")
@@ -75,7 +76,7 @@ func LoginHandler(w http.ResponseWriter, req *http.Request) {
 	}
 	code := generateCode()
 
-	app, ok := t.Applications[authReq.ClientId]
+	app, ok := db.Applications[authReq.ClientId]
 	if !ok {
 		HandleBadRequest(w, req, authReq.RedirectUri, v.ValidationError{
 			ErrorCode:        v.AuthErrorInvalidRequest,
@@ -98,7 +99,7 @@ func LoginHandler(w http.ResponseWriter, req *http.Request) {
 	responseParams := url.Values{}
 	nonce := util.RandomString(32)
 
-	t.LoginRequests[code] = &t.LoginRequest{
+	db.LoginRequests[code] = &t.LoginRequest{
 		User:        u,
 		Application: app,
 		Code:        code,
@@ -122,7 +123,7 @@ func serveLogin(w http.ResponseWriter, authorizeReq t.AuthorizeRequest, app *t.A
 
 	tmpl := template.Must(template.New("login.html").ParseFiles(html))
 	loginId := t.LoginId(util.RandomString(32))
-	t.AuthRequests[loginId] = authorizeReq
+	db.AuthRequests[loginId] = authorizeReq
 	data := struct {
 		LoginId string
 		Name    string
@@ -147,7 +148,7 @@ func generateCode() t.Code {
 
 // validateUser confirms the user with provided credentials exists.
 func validateUser(email t.Email, password string) (*t.User, error) {
-	u, ok := t.Users[email]
+	u, ok := db.Users[email]
 	if !ok {
 		return nil, fmt.Errorf("No user with that email")
 	}
