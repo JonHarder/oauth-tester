@@ -1,6 +1,9 @@
 package db
 
 import (
+	"time"
+
+	"github.com/JonHarder/oauth/internal/config"
 	t "github.com/JonHarder/oauth/internal/types"
 )
 
@@ -21,6 +24,33 @@ var (
 	// a map of refresh_tokens to the the record of when it was granted.
 	RefreshTokens map[string]t.RefreshRecord
 )
+
+func PersistSession(tok t.TokenResponse, user t.User) {
+	Sessions[tok.AccessToken] = t.Session{
+		Token:       tok,
+		User:        user,
+		TimeGranted: time.Now(),
+	}
+}
+
+func PersistRefreshToken(refreshToken string, app t.Application, user t.User) {
+	RefreshTokens[refreshToken] = t.RefreshRecord{
+		TimeGranted: time.Now(),
+		App:         app,
+		User:        user,
+	}
+}
+
+func LoadFromConfig(c config.Config) {
+	for _, app := range c.Apps {
+		app := app
+		Applications[app.ClientId] = &app
+	}
+	for _, u := range c.Users {
+		u := u
+		Users[u.Email] = &u
+	}
+}
 
 func init() {
 	Applications = make(map[string]*t.Application)

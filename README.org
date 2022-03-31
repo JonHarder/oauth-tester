@@ -93,7 +93,25 @@ If set to false, authorize requests will not fail if =code_challenge= is not pro
 This is a list of allowed =code_challenge_method= values. If an authorize request provides a =code_challenge_method= not present in this list, the request will be rejected.
 
 ** Enhancements
-*** TODO refactor =validation= package
+*** TODO [#A] handle ~implicit~ flow
+- =response_type= :: ~access_token~
+*** TODO [#B] Handle RS256 JWT signing alg
+**** TODO need to provide jwks url
+*** TODO Session management
+[[https://openid.net/specs/openid-connect-session-1_0.html][openid docs]]
+*** TODO Integrate a server framework
+- need to do some research to find a suitable one
+*** TODO verify =code_challenge_method= against ~settings.pkce.allowed_methods~
+*** SOMEDAY Handle different =response_type= flows
+*** DONE Implement scope access test endpoint
+- using auth header, determine if the requested content is allowed to access it given the scopes it was authorized for
+#+BEGIN_SRC restclient
+GET http://localhost:8001/scope-test?resource=foo
+Authorization: Bearer as98htaiOIENas89398wtMTCCDpu7
+#+END_SRC
+
+should respond with 403 if authorize request did not contain the ~foo~ scope.
+*** DONE refactor =validation= package
 - move grant type specific logic into specific package =grants=
 #+BEGIN_SRC go
 package grants
@@ -128,25 +146,6 @@ func (req RefreshToken) CreateResponse() (*TokenResponse, error) {
 
 }
 #+END_SRC
-*** TODO handle ~implicit~ flow
-- =response_type= :: ~access_token~
-*** TODO Auto login if session exists
-[[https://openid.net/specs/openid-connect-session-1_0.html][openid docs]]
-*** TODO store =state= cryptographically secured in browser cookie
-*** TODO Implement scope access test endpoint
-- using auth header, determine if the requested content is allowed to access it given the scopes it was authorized for
-#+BEGIN_SRC restclient
-GET http://localhost:8001/scope-test?resource=foo
-Authorization: Bearer as98htaiOIENas89398wtMTCCDpu7
-#+END_SRC
-
-should respond with 403 if authorize request did not contain the ~foo~ scope.
-*** TODO Handle RS256 JWT signing alg
-**** TODO need to provide jwks url
-*** TODO Integrate a server framework
-- need to do some research to find a suitable one
-*** TODO verify =code_challenge_method= against ~settings.pkce.allowed_methods~
-*** SOMEDAY Handle different =response_type= flows
 *** DONE move map objects from =types= package into separate =db= package
 - anticipating eventual actual database
 - makes more clear what those maps are doing

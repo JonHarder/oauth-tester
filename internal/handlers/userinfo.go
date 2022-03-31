@@ -5,8 +5,7 @@ import (
 	"fmt"
 	"net/http"
 
-	"github.com/JonHarder/oauth/internal/db"
-	v "github.com/JonHarder/oauth/internal/validation"
+	t "github.com/JonHarder/oauth/internal/types"
 )
 
 type userInfo struct {
@@ -16,33 +15,11 @@ type userInfo struct {
 	Email      string `json:"email"`
 }
 
-func UserInfoHandler(w http.ResponseWriter, req *http.Request) {
+func UserInfoHandler(w http.ResponseWriter, req *http.Request, session t.Session) {
 	if method := req.Method; method != "GET" {
 		w.WriteHeader(http.StatusMethodNotAllowed)
 		fmt.Fprintf(w, "Method '%s' not supported on userinfo endpoint", method)
 	}
-	token, err := v.GetBearerToken(req.Header)
-	if err != nil {
-		w.WriteHeader(http.StatusBadRequest)
-		fmt.Fprintf(w, "%s", err.Error())
-		return
-	}
-
-	session, ok := db.Sessions[token]
-	if !ok {
-		w.WriteHeader(http.StatusNotFound)
-		fmt.Fprintf(w, "access_token not associated with active session")
-		return
-	}
-
-	if session.Expired() {
-		// clean up after ourselves since the token is expired
-		delete(db.Sessions, token)
-		w.WriteHeader(http.StatusNotFound)
-		fmt.Fprintf(w, "access_token expired")
-		return
-	}
-
 	user := userInfo{
 		Name:       session.User.GivenName + " " + session.User.FamilyName,
 		FamilyName: session.User.FamilyName,

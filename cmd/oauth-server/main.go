@@ -13,6 +13,7 @@ import (
 	"github.com/JonHarder/oauth/internal/config"
 	"github.com/JonHarder/oauth/internal/db"
 	"github.com/JonHarder/oauth/internal/handlers"
+	"github.com/JonHarder/oauth/internal/middleware"
 	"github.com/JonHarder/oauth/internal/util"
 )
 
@@ -52,32 +53,29 @@ func main() {
 	if config.Settings.Pkce.Required {
 		log.Printf(" - Allowed challenge methods: %v\n", config.Settings.Pkce.AllowedMethods)
 	}
-	for _, app := range config.Apps {
-		app := app
-		db.Applications[app.ClientId] = &app
-		log.Printf("Applications configured:")
-		log.Printf(" - Name: '%s': Client ID: '%s'", app.Name, app.ClientId)
-	}
-	for _, u := range config.Users {
-		u := u
-		db.Users[u.Email] = &u
-	}
-	log.Printf("======== END SETTINGS =========")
+	db.LoadFromConfig(*config)
 
 	// Routes
+	/// Public routes
 	http.HandleFunc("/authorize", handlers.AuthorizationHandler(*config))
 	http.HandleFunc("/login", handlers.LoginHandler)
 	http.HandleFunc("/token", handlers.TokenHandler)
+	http.HandleFunc("/.wellknown/openid-configuration", handlers.OpenIDConfigHandler)
 
-	http.HandleFunc("/userinfo", handlers.UserInfoHandler)
-	http.HandleFunc(
-		"/.wellknown/openid-configuration",
-		handlers.OpenIDConfigHandler,
-	)
+	/// Secure routes
+	http.HandleFunc("/userinfo", middleware.SecureAccessMiddleware(handlers.UserInfoHandler))
+	http.HandleFunc("/scopetest", middleware.SecureAccessMiddleware(handlers.ScopeTest))
 	// End Routes
 
+	log.Printf("Endpoints:")
+	log.Printf("   /authorize\t\t\t\tfor the oauth authorization request")
+	log.Printf("   /token\t\t\t\tfor the oauth token exchange")
+	log.Printf("   /userinfo\t\t\t\tfor additional information about users")
+	log.Printf("   /scopetest\t\t\t\tfor checking user's access to a particular resource")
+	log.Printf("   /.wellknown/openid-configuration\tfor openid metadata")
+	log.Printf("======== END SETTINGS =========")
 	log.Printf("Listening on http://localhost:%d", options.port)
-	log.Printf("Open ID Configuration endpoint: http://localhost:%d/.wellknown/openid-configuration", options.port)
+
 	if err := http.ListenAndServe(fmt.Sprintf(":%d", options.port), nil); err != nil {
 		log.Fatalf("Error starting server: %v", err)
 	}
