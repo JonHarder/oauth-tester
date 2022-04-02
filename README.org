@@ -93,11 +93,14 @@ If set to false, authorize requests will not fail if =code_challenge= is not pro
 This is a list of allowed =code_challenge_method= values. If an authorize request provides a =code_challenge_method= not present in this list, the request will be rejected.
 
 ** Enhancements
-*** TODO [#A] handle ~implicit~ flow
+*** DONE [#A] handle ~implicit~ flow
+CLOSED: [2022-04-02 Sat 10:49]
 - =response_type= :: ~token~
 - =response_type= :: ~id_token~
-*** TODO add landing page
-*** TODO add settings page
+*** DONE add landing page
+CLOSED: [2022-04-02 Sat 10:55]
+*** DONE add settings page
+CLOSED: [2022-04-02 Sat 10:49]
 *** TODO add config for which flows are accepted
 *** TODO add db
 *** TODO Noman + consul for full application deployment

@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"errors"
 	"flag"
 	"fmt"
@@ -38,6 +39,34 @@ func parseOptions() Options {
 	return options
 }
 
+func settingsHandler(c *config.Config) http.HandlerFunc {
+	return func(w http.ResponseWriter, req *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(c.Settings)
+	}
+}
+
+func indexHandler(w http.ResponseWriter, req *http.Request) {
+	w.Header().Set("Content-Type", "text/html")
+	html := `
+<html>
+  <head>
+    <title>OAuth Server</title>
+  </head>
+  <body>
+    <nav>
+     <h3>Public</h3>
+     <ul>
+      <li><a href="/settings">Settings</a></li>
+      <li><a href="/.wellknown/openid-configuration">Open ID Configuration</a></li>
+     </ul>
+    </nav>
+  </body>
+</html>
+`
+	fmt.Fprintf(w, html)
+}
+
 // main is the entry point to the oauth-server.
 func main() {
 	options := parseOptions()
@@ -57,10 +86,13 @@ func main() {
 
 	// Routes
 	/// Public routes
+	http.HandleFunc("/", indexHandler)
 	http.HandleFunc("/authorize", handlers.AuthorizationHandler(*config))
 	http.HandleFunc("/login", handlers.LoginHandler)
 	http.HandleFunc("/token", handlers.TokenHandler)
 	http.HandleFunc("/.wellknown/openid-configuration", handlers.OpenIDConfigHandler)
+
+	http.HandleFunc("/settings", settingsHandler(config))
 
 	/// Secure routes
 	http.HandleFunc("/userinfo", middleware.SecureAccessMiddleware(handlers.UserInfoHandler))
