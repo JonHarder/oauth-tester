@@ -94,7 +94,14 @@ This is a list of allowed =code_challenge_method= values. If an authorize reques
 
 ** Enhancements
 *** TODO [#A] handle ~implicit~ flow
-- =response_type= :: ~access_token~
+- =response_type= :: ~token~
+- =response_type= :: ~id_token~
+*** TODO add landing page
+*** TODO add settings page
+*** TODO add config for which flows are accepted
+*** TODO add db
+*** TODO Noman + consul for full application deployment
+- incorporate db
 *** TODO [#B] Handle RS256 JWT signing alg
 **** TODO need to provide jwks url
 *** TODO Session management

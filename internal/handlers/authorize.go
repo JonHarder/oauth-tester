@@ -6,9 +6,11 @@ import (
 	"log"
 	"net/http"
 	"net/url"
+	"strings"
 
 	"github.com/JonHarder/oauth/internal/config"
 	"github.com/JonHarder/oauth/internal/db"
+	"github.com/JonHarder/oauth/internal/oauth"
 	"github.com/JonHarder/oauth/internal/parameters"
 	t "github.com/JonHarder/oauth/internal/types"
 	"github.com/JonHarder/oauth/internal/util"
@@ -74,7 +76,6 @@ func LoginHandler(w http.ResponseWriter, req *http.Request) {
 		fmt.Fprintf(w, "unknown login request, login_id not found")
 		return
 	}
-	code := generateCode()
 
 	app, ok := db.Applications[authReq.ClientId]
 	if !ok {
@@ -89,6 +90,9 @@ func LoginHandler(w http.ResponseWriter, req *http.Request) {
 		fmt.Fprintf(w, "Callback does not match registered redirect uri")
 		return
 	}
+	responseParams := url.Values{}
+	responseParams.Set("state", authReq.State)
+	responseParams.Set("client_id", app.ClientId)
 
 	u, err := validateUser(t.Email(req.FormValue("email")), req.FormValue("psw"))
 	if err != nil {
@@ -96,22 +100,50 @@ func LoginHandler(w http.ResponseWriter, req *http.Request) {
 		serveLogin(w, authReq, app, &errorMsg)
 		return
 	}
-	responseParams := url.Values{}
+	// now that the user has been authenticated and authorized
+	// delete the login request id to clean up data from lingering
+	delete(db.AuthRequests, t.LoginId(loginId))
+
 	nonce := util.RandomString(32)
 
-	db.LoginRequests[code] = &t.LoginRequest{
+	loginReq := &t.LoginRequest{
 		User:        u,
 		Application: app,
-		Code:        code,
 		Scopes:      authReq.Scopes,
 		Redirect:    authReq.RedirectUri,
 		Nonce:       &nonce,
 		Pkce:        authReq.Pkce,
 	}
 
-	responseParams.Set("client_id", app.ClientId)
-	responseParams.Add("state", authReq.State)
-	responseParams.Add("code", string(code))
+	responseTypes := strings.Split(authReq.ResponseType, " ")
+	for _, responseType := range responseTypes {
+		if responseType == "code" {
+			code := generateCode()
+			loginReq.Code = code
+			db.LoginRequests[code] = loginReq
+			responseParams.Set("code", string(code))
+		}
+		if responseType == "token" {
+			accessToken := util.RandomString(32)
+			responseParams.Set("token", accessToken)
+
+			tokenResp := t.TokenResponse{
+				AccessToken: accessToken,
+				TokenType:   "Bearer",
+				ExpiresIn:   3600,
+				Scope:       strings.Join(authReq.Scopes, " "),
+			}
+			db.PersistSession(tokenResp, *u)
+		}
+		if responseType == "id_token" {
+			idToken, err := oauth.GenerateIdToken(*loginReq, *app)
+			if err != nil {
+				log.Printf("Error generating id_token in authorization request: %v", err)
+			}
+			responseParams.Set("id_token", *idToken)
+		}
+	}
+
 	responseUrl := authReq.RedirectUri + "?" + responseParams.Encode()
 	http.Redirect(w, req, responseUrl, 301)
 }
