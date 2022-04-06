@@ -2,9 +2,11 @@ package validation
 
 import (
 	"fmt"
+	"log"
 	"net/url"
 	"strings"
 
+	"github.com/JonHarder/oauth/internal/db"
 	"github.com/JonHarder/oauth/internal/oauth/pkce"
 	"github.com/JonHarder/oauth/internal/parameters"
 	t "github.com/JonHarder/oauth/internal/types"
@@ -64,6 +66,16 @@ func ValidateAuthorizeRequest(p parameters.ParameterBag, requirePkce bool) (*t.A
 		scopes = scopes[:len(scopes)-1]
 	}
 
+	var allowedScopes []t.Scope
+	for _, scope := range scopes {
+		var s t.Scope
+		if err := db.DB.First(&s, "name = ?", scope).Error; err != nil {
+			log.Printf("WARNING: scope '%s' not allowed", scope)
+		} else {
+			allowedScopes = append(allowedScopes, s)
+		}
+	}
+
 	pkce, err := pkce.ParsePkce(p, requirePkce)
 	if err != nil {
 		return nil, &ValidationError{
@@ -78,6 +90,6 @@ func ValidateAuthorizeRequest(p parameters.ParameterBag, requirePkce bool) (*t.A
 		ResponseType: p.Parameters["response_type"],
 		State:        p.Parameters["state"],
 		Pkce:         pkce,
-		Scopes:       scopes,
+		Scopes:       allowedScopes,
 	}, nil
 }

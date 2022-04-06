@@ -2,8 +2,8 @@ package grants
 
 import (
 	"fmt"
+	"log"
 	"net/http"
-	"strings"
 	"time"
 
 	"github.com/JonHarder/oauth/internal/db"
@@ -37,43 +37,67 @@ func (req *AuthorizationCodeGrant) GetClientId() string {
 
 // CreateResponse implements Grant
 func (req *AuthorizationCodeGrant) CreateResponse(app *t.Application) (*t.TokenResponse, error) {
+	log.Printf("Validating authorization request redirect_uri matches application")
 	if req.RedirectUri != app.Callback {
 		return nil, fmt.Errorf("provided redirect_uri does not match registered uri")
 	}
-	loginReq, ok := db.LoginRequests[req.Code]
-	if !ok {
-		return nil, fmt.Errorf("redirect_uri does not match the authorization request")
+	log.Printf("Validating a login_request exists")
+	var loginReq t.LoginRequest
+	if err := db.DB.Preload("Scopes").Preload("User").First(&loginReq, "code = ?", string(req.Code)).Error; err != nil {
+		return nil, fmt.Errorf("Login request with code: '%s' not found", string(req.Code))
 	}
 	if pk := loginReq.Pkce; pk != nil {
+		log.Printf("Validating PKCE")
 		if err := pkce.ValidatePkce(*pk, *req.CodeVerifier); err != nil {
 			return nil, err
 		}
 	}
+	log.Printf("Validating client_secret")
 	if req.ClientSecret != app.ClientSecret {
+		log.Printf("INVALID CLIENT_SECRET!")
 		return nil, fmt.Errorf("invalid client_secret")
+	}
+	var scopeStr string
+	log.Printf("Generating scope string")
+	log.Printf("from %d scopes: %v", len(loginReq.Scopes), loginReq.Scopes)
+	for _, scope := range loginReq.Scopes {
+		scopeStr = scopeStr + " " + scope.Name
 	}
 	resp := t.TokenResponse{
 		RefreshToken: "",
 		AccessToken:  util.RandomString(32),
 		TokenType:    "Bearer",
 		ExpiresIn:    3600,
-		Scope:        strings.Join(loginReq.Scopes, " "),
+		Scope:        scopeStr,
 		IdToken:      "",
 	}
 	if loginReq.ContainsScope("openid") {
-		token, err := oauth.GenerateIdToken(*loginReq, *app)
+		log.Printf("Generating id_token")
+		token, err := oauth.GenerateIdToken(loginReq, *app)
 		if err != nil {
 			return nil, err
 		}
 		resp.IdToken = *token
 	}
 	if loginReq.ContainsScope("offline_access") {
+		log.Printf("Generating refresh_token")
 		resp.RefreshToken = util.RandomString(32)
 
-		db.PersistRefreshToken(resp.RefreshToken, *app, *loginReq.User)
+		refreshRecord := t.RefreshRecord{
+			TimeGranted: time.Now(),
+			Application: *app,
+			User:        *loginReq.User,
+		}
+		db.DB.Create(&refreshRecord)
 	}
 
-	db.PersistSession(resp, *loginReq.User)
+	session := t.Session{
+		TokenResponse: resp,
+		User:          *loginReq.User,
+		TimeGranted:   time.Now(),
+	}
+	log.Printf("CreateResponse success, persisting session")
+	db.DB.Create(&session)
 
 	return &resp, nil
 }
@@ -94,11 +118,11 @@ func (req *TokenRefreshGrant) CreateResponse(app *t.Application) (*t.TokenRespon
 	if app.ClientSecret != req.ClientSecret {
 		return nil, fmt.Errorf("invalid client_secret")
 	}
-	refreshSession, ok := db.RefreshTokens[req.RefreshToken]
-	if !ok {
+	var refreshRecord t.RefreshRecord
+	if err := db.DB.First(&refreshRecord, "refresh_token = ?", req.RefreshToken).Error; err != nil {
 		return nil, fmt.Errorf("unknown refresh_token")
 	}
-	if time.Since(refreshSession.TimeGranted) > time.Second*time.Duration(8600) {
+	if time.Since(refreshRecord.TimeGranted) > time.Second*time.Duration(8600) {
 		return nil, fmt.Errorf("expired refresh_token")
 	}
 	return &t.TokenResponse{

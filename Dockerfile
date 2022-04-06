@@ -9,7 +9,8 @@ COPY . .
 RUN go build -o /oauth-server ./cmd/oauth-server
 
 FROM scratch AS bin
-EXPOSE 8001
+ARG PORT
+EXPOSE ${PORT}
 COPY --from=build /oauth-server /oauth-server
 COPY static /static
 COPY config.json .
