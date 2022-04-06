@@ -39,12 +39,9 @@ func ValidatePkce(pkce PKCE, verifier string) error {
 	return nil
 }
 
-func ParsePkce(p parameters.ParameterBag, requirePkce bool) (*PKCE, error) {
+func ParsePkce(p parameters.ParameterBag) (*PKCE, error) {
 	var pkce *PKCE = nil
 	codeChallenge, codeChallengeOk := p.Parameters["code_challenge"]
-	if !codeChallengeOk && requirePkce {
-		return nil, fmt.Errorf("Server requires PKCE parameters but 'code_challenge' was not present")
-	}
 	if codeChallengeOk {
 		codeChallengeMethod := p.Get("code_challenge_method", "plain")
 		pkce = &PKCE{

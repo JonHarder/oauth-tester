@@ -40,66 +40,7 @@ make test
 ** Documentation
 [[file:Docs.org][link]]
 
-** Configuration
-This reads from a =config.json= file, which expects an object with two
-keys: ~applications~, and ~users~.
-
-In addition to these, an optional ~settings~ key will be read if provided which configures the various features of the server
-
-*** applications
-A list of objects, each of the form:
-
-#+begin_src json
-{
-  "clientId": "string",
-  "clientSecret": "string",
-  "callback": "url",
-  "name": "string"
-}
-#+end_src
-
-*** users
-A list of objects, each of the form:
-
-#+begin_src json
-{
-  "email": "email",
-  "password": "string",
-  "family_name": "string",
-  "given_name": "string"
-}
-#+end_src
-
-*** settings
-An object of the form:
-
-#+BEGIN_SRC json
-{
-  "pkce": {
-    "required": "bool",
-    "allowed_code_challenge_methods": ["string"]
-  }
-}
-#+END_SRC
-
-**** =pkce.required= 
-This instructs the authorization server whether or not to enforce PKCE verification. When set to =true=, any authorization request that does not contain a =code_challenge= will immediately fail.
-
-If set to false, authorize requests will not fail if =code_challenge= is not provided, however, if a client does provide a =code_challenge=, it will be verified in the token exchange using the =code_verifier= and can still fail if the verifier is not valid.
-
-**** =pkce.allowed_code_challenge_methods=
-*NOTE* /currently not supported/
-
-This is a list of allowed =code_challenge_method= values. If an authorize request provides a =code_challenge_method= not present in this list, the request will be rejected.
-
 ** Enhancements
-*** DONE [#A] handle ~implicit~ flow
-- =response_type= :: ~token~
-- =response_type= :: ~id_token~
-*** DONE add landing page
-*** DONE add settings page
-*** DONE add db
-**** DONE figure out how to express =[]string= in ~gorm~
 *** TODO add config for which flows are accepted
 *** TODO Nomad + consul for full application deployment
 *** TODO [#B] Handle RS256 JWT signing alg
@@ -111,6 +52,13 @@ This is a list of allowed =code_challenge_method= values. If an authorize reques
 - fiber?
 *** TODO verify =code_challenge_method= against ~settings.pkce.allowed_methods~
 *** SOMEDAY Handle different =response_type= flows
+*** DONE [#A] handle ~implicit~ flow
+- =response_type= :: ~token~
+- =response_type= :: ~id_token~
+*** DONE add landing page
+*** DONE add settings page
+*** DONE add db
+**** DONE figure out how to express =[]string= in ~gorm~
 *** DONE Implement scope access test endpoint
 - using auth header, determine if the requested content is allowed to access it given the scopes it was authorized for
 #+BEGIN_SRC restclient

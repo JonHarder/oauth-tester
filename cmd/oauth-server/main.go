@@ -1,9 +1,7 @@
 package main
 
 import (
-	"encoding/json"
 	"errors"
-	"flag"
 	"fmt"
 	"log"
 	"math/rand"
@@ -11,7 +9,6 @@ import (
 	"os"
 	"time"
 
-	"github.com/JonHarder/oauth/internal/config"
 	"github.com/JonHarder/oauth/internal/db"
 	"github.com/JonHarder/oauth/internal/handlers"
 	"github.com/JonHarder/oauth/internal/middleware"
@@ -28,20 +25,6 @@ func init() {
 
 type Options struct {
 	configPath string
-}
-
-func parseOptions() Options {
-	options := Options{}
-	flag.StringVar(&options.configPath, "config", "config.json", "Path to configuration file")
-	flag.Parse()
-	return options
-}
-
-func settingsHandler(c *config.Config) http.HandlerFunc {
-	return func(w http.ResponseWriter, req *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(c.Settings)
-	}
 }
 
 func indexHandler(w http.ResponseWriter, req *http.Request) {
@@ -67,18 +50,9 @@ func indexHandler(w http.ResponseWriter, req *http.Request) {
 
 // main is the entry point to the oauth-server.
 func main() {
-	options := parseOptions()
-
 	html := util.BinPath("static", "login.html")
 	if _, err := os.Stat(html); errors.Is(err, os.ErrNotExist) {
 		log.Fatalf("ERROR: html file 'login.html' not found.")
-	}
-
-	config := config.ReadConfig(options.configPath)
-	log.Printf("========= SETTINGS ==============")
-	log.Printf("pkce required: %t", config.Settings.Pkce.Required)
-	if config.Settings.Pkce.Required {
-		log.Printf(" - Allowed challenge methods: %v\n", config.Settings.Pkce.AllowedMethods)
 	}
 
 	log.Printf("Endpoints:")
@@ -87,7 +61,6 @@ func main() {
 	log.Printf("   /userinfo\t\t\t\tfor additional information about users")
 	log.Printf("   /scopetest\t\t\t\tfor checking user's access to a particular resource")
 	log.Printf("   /.wellknown/openid-configuration\tfor openid metadata")
-	log.Printf("======== END SETTINGS =========")
 
 	db.InitDB(db.Config{
 		Name:     os.Getenv("DB_DB"),
@@ -99,12 +72,10 @@ func main() {
 	// Routes
 	/// Public routes
 	http.HandleFunc("/", indexHandler)
-	http.HandleFunc("/authorize", handlers.AuthorizationHandler(*config))
+	http.HandleFunc("/authorize", handlers.AuthorizationHandler())
 	http.HandleFunc("/login", handlers.LoginHandler())
 	http.HandleFunc("/token", handlers.TokenHandler())
 	http.HandleFunc("/.wellknown/openid-configuration", handlers.OpenIDConfigHandler)
-
-	http.HandleFunc("/settings", settingsHandler(config))
 
 	/// Secure routes
 	http.HandleFunc("/userinfo", middleware.SecureAccessMiddleware(handlers.UserInfoHandler))

@@ -29,7 +29,7 @@ type ValidationError struct {
 // ValidateAuthhorizeRequest takes incoming parameters and creates an AuthorizeRequest.
 // If there was an issue in parsing and validating, a ValidationError with information
 // pertaining to the issue will be retuned.
-func ValidateAuthorizeRequest(p parameters.ParameterBag, requirePkce bool) (*t.AuthorizeRequest, *ValidationError) {
+func ValidateAuthorizeRequest(p parameters.ParameterBag) (*t.AuthorizeRequest, *ValidationError) {
 	requiredParameters := []string{
 		"response_type",
 		"redirect_uri",
@@ -76,7 +76,7 @@ func ValidateAuthorizeRequest(p parameters.ParameterBag, requirePkce bool) (*t.A
 		}
 	}
 
-	pkce, err := pkce.ParsePkce(p, requirePkce)
+	pkce, err := pkce.ParsePkce(p)
 	if err != nil {
 		return nil, &ValidationError{
 			ErrorCode:        AuthErrorInvalidRequest,

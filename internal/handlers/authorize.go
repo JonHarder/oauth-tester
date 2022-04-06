@@ -9,7 +9,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/JonHarder/oauth/internal/config"
 	"github.com/JonHarder/oauth/internal/db"
 	"github.com/JonHarder/oauth/internal/oauth"
 	"github.com/JonHarder/oauth/internal/parameters"
@@ -21,10 +20,10 @@ import (
 // AuthorizationHandler handles the /authorize requests made by an oauth2.0 client.
 // It does minimal validation, then presents the user with a login page requesting
 // access on behalf of the service provider.
-func AuthorizationHandler(c config.Config) func(w http.ResponseWriter, req *http.Request) {
+func AuthorizationHandler() func(w http.ResponseWriter, req *http.Request) {
 	return func(w http.ResponseWriter, req *http.Request) {
 		params := parameters.NewFromQuery(req)
-		authReq, err := v.ValidateAuthorizeRequest(*params, c.Settings.Pkce.Required)
+		authReq, err := v.ValidateAuthorizeRequest(*params)
 		if err != nil {
 			w.WriteHeader(http.StatusBadRequest)
 			fmt.Fprintf(w, "%s: %s", err.ErrorCode, err.ErrorDescription)
