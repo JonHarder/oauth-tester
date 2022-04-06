@@ -93,21 +93,22 @@ If set to false, authorize requests will not fail if =code_challenge= is not pro
 This is a list of allowed =code_challenge_method= values. If an authorize request provides a =code_challenge_method= not present in this list, the request will be rejected.
 
 ** Enhancements
-*** TODO [#A] handle ~implicit~ flow
+*** DONE [#A] handle ~implicit~ flow
 - =response_type= :: ~token~
 - =response_type= :: ~id_token~
-*** TODO add landing page
-*** TODO add settings page
+*** DONE add landing page
+*** DONE add settings page
+*** DONE add db
+**** DONE figure out how to express =[]string= in ~gorm~
 *** TODO add config for which flows are accepted
-*** TODO add db
-*** TODO Noman + consul for full application deployment
-- incorporate db
+*** TODO Nomad + consul for full application deployment
 *** TODO [#B] Handle RS256 JWT signing alg
 **** TODO need to provide jwks url
 *** TODO Session management
 [[https://openid.net/specs/openid-connect-session-1_0.html][openid docs]]
 *** TODO Integrate a server framework
 - need to do some research to find a suitable one
+- fiber?
 *** TODO verify =code_challenge_method= against ~settings.pkce.allowed_methods~
 *** SOMEDAY Handle different =response_type= flows
 *** DONE Implement scope access test endpoint
@@ -120,39 +121,6 @@ Authorization: Bearer as98htaiOIENas89398wtMTCCDpu7
 should respond with 403 if authorize request did not contain the ~foo~ scope.
 *** DONE refactor =validation= package
 - move grant type specific logic into specific package =grants=
-#+BEGIN_SRC go
-package grants
-
-type TokenResponse struct
-{
-
-}
-
-type Grant interface {
-   CreateResponse() (*TokenResponse, error)
-}
-
-type AuthorizationCode struct {
-  ClientId     string
-  ClientSecret string
-  Code         string
-  Pkce         *pkce.PKCE
-}
-
-type RefreshToken struct {
-  ClientId     string
-  ClientSecret string
-  RefreshToken string
-}
-
-func (req AuthorizatonCode) CreateResponse() (*TokenResponse, error) {
-
-}
-
-func (req RefreshToken) CreateResponse() (*TokenResponse, error) {
-
-}
-#+END_SRC
 *** DONE move map objects from =types= package into separate =db= package
 - anticipating eventual actual database
 - makes more clear what those maps are doing

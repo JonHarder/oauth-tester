@@ -2,6 +2,7 @@ package middleware
 
 import (
 	"html/template"
+	"log"
 	"net/http"
 
 	"github.com/JonHarder/oauth/internal/db"
@@ -24,15 +25,15 @@ func SecureAccessMiddleware(secureHandler SecureHandler) http.HandlerFunc {
 			return
 		}
 
-		session, ok := db.Sessions[token]
-		if !ok {
+		var session t.Session
+		if err := db.DB.First(&session, "token = ?", token).Error; err != nil {
+			log.Printf("error: %v", err)
 			w.WriteHeader(http.StatusForbidden)
 			w.Header().Set("Content-Type", "text/html")
 			html.Execute(w, "No session found with bearer token")
 			return
 		}
 		if session.Expired() {
-			delete(db.Sessions, token)
 			w.WriteHeader(http.StatusForbidden)
 			w.Header().Set("Content-Type", "text/html")
 			html.Execute(w, "Session expired")

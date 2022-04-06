@@ -2,6 +2,7 @@ package oauth
 
 import (
 	"fmt"
+	"log"
 	"net/http"
 	"strings"
 	"time"
@@ -14,6 +15,7 @@ import (
 // GenerateIdToken generates an open id connect jwt encoded string representing the user.
 // TODO: hard coded to use HS256 jwt signing method. Refactor to handle HS256 and RS256.
 func GenerateIdToken(loginReq t.LoginRequest, app t.Application) (*string, error) {
+	log.Printf("GenerateIdToken: user: %v", loginReq.User)
 	claims := jwt.MapClaims{
 		"iss":         constants.ISSUER,                       // Who issued this token
 		"sub":         loginReq.User.Email,                    // Identifier of the user this token represents
