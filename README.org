@@ -16,6 +16,14 @@ and ~PGADMIN_DEFAULT_PASSWORD~)
 Once into the dashboard, you can add a server and use the parameters set in the docker-compose.yml file user the
 *db* section, namely: ~POSTGRES_USER~, and ~POSTGRES_PASSWORD~.
 
+** Configuration
+You will need to configure at least one entry into the ~applications~ table, and one user in the ~users~ table.
+
+Alternatively, you can build and run the server with hot binary reloading using [[https://github.com/githubnemo/CompileDaemon][CompileDaemon]]
+#+BEGIN_SRC sh
+make dev
+#+END_SRC
+
 ** Development Dependencies
 - go 1.17
 - CompileDaemeon :: Used for the local dev server with automatic server rebuilding.
@@ -29,14 +37,6 @@ make
 #+end_src
 
 This will produce a binary: =oauth-server=, which you can run.
-
-** Configuration
-You will need to configure at least one entry into the ~applications~ table, and one user in the ~users~ table.
-
-Alternatively, you can build and run the server with hot binary reloading using [[https://github.com/githubnemo/CompileDaemon][CompileDaemon]]
-#+BEGIN_SRC sh
-make dev
-#+END_SRC
 
 ** Installing
 #+BEGIN_SRC sh
