@@ -18,7 +18,6 @@ Once into the dashboard, you can add a server and use the parameters set in the 
 
 ** Development Dependencies
 - go 1.17
-** Development Dependencies
 - CompileDaemeon :: Used for the local dev server with automatic server rebuilding.
 #+BEGIN_SRC sh
 go install github.com/githubnemo/CompileDaemon@latest
@@ -28,6 +27,11 @@ go install github.com/githubnemo/CompileDaemon@latest
 #+begin_src sh
 make
 #+end_src
+
+This will produce a binary: =oauth-server=, which you can run.
+
+** Configuration
+You will need to configure at least one entry into the ~applications~ table, and one user in the ~users~ table.
 
 Alternatively, you can build and run the server with hot binary reloading using [[https://github.com/githubnemo/CompileDaemon][CompileDaemon]]
 #+BEGIN_SRC sh
@@ -42,8 +46,6 @@ make install
 ** Running
 #+begin_src
 Usage of oauth-server:
-  -config string
-    	Path to configuration file (default "config.json")
   -port int
     	Port to run server on (default 8001)
 #+end_src
