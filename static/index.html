@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <title>OAuth Server</title>
+  </head>
+  <body>
+    <h1>OAuth 2.0 (Open ID Connect) Server</h1>
+    <div>
+        <a href="https://datatracker.ietf.org/doc/html/rfc6749" target="_blank">
+            OAuth 2.0 Specification
+        </a>
+    </div>
+    <div>
+        <a href="https://openid.net/specs/openid-connect-core-1_0.html" target="_blank">
+            Open ID Connect Specification
+        </a>
+    </div>
+    <nav>
+     <h3>Public</h3>
+     <ul>
+      <li><a href="/.wellknown/openid-configuration">/.wellknown/openid-configuration</a>: Open ID Configuration</li>
+     </ul>
+    </nav>
+    <nav>
+    <h3>Restricted</h3>
+    <p><i>The following requests are available to authorized users only.
+        To authorize a request, Provide an authorization header with the bearer token
+        you recieved in the "access_token" portion of the token exchange response.
+    </i></p>
+    <pre>
+      GET http://localhost:8001/userinfo
+      Authorization: Bearer 98ashtUNexz8108Nus1oqzmn
+    </pre>
+    <ul>
+        <li><a href="/scopetest">/scopetest</a>: Check user access to a given resource</li>
+        <li><a href="/userinfo">/userinfo</a>: Get user info</li>
+    </ul>
+  </body>
+</html>

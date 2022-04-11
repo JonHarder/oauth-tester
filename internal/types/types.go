@@ -107,4 +107,5 @@ type RefreshRecord struct {
 	ApplicationID uint
 	User          User
 	UserID        uint
+	RefreshToken  string
 }

@@ -16,12 +16,12 @@ type OpenIdConfiguration struct {
 
 var Configuration = OpenIdConfiguration{
 	Issuer:                constants.ISSUER,
-	AuthorizationEndpoint: constants.ISSUER + "/authorize",
-	TokenEndpoint:         constants.ISSUER + "/token",
+	AuthorizationEndpoint: "http://127.0.0.1:8001/authorize",
+	TokenEndpoint:         "http://127.0.0.1:8001/token",
 }
 
 func OpenIDConfigHandler(w http.ResponseWriter, req *http.Request) {
-	data, err := json.Marshal(Configuration)
+	data, err := json.MarshalIndent(Configuration, "", "  ")
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		fmt.Fprintf(w, err.Error())

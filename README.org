@@ -1,5 +1,21 @@
 * OAuth Client testing server
 This is a testing Open ID Connect compliant identity provider server. It aims to be particularly verbose in providing feedback to developers wishing to implement SSO using Open ID Connect into their service.
+
+** Running locally
+
+#+BEGIN_SRC sh
+docker compose up
+#+END_SRC
+
+This will start the server itself, but also the required database, and a database administration
+dashboard hosted on http://127.0.0.1:5050.
+
+The credentials to log in are provided in the docker-compose.yml file under *pgadmin* with the keys (~PGADMIN_DEFAULT_EMAIL~
+and ~PGADMIN_DEFAULT_PASSWORD~)
+
+Once into the dashboard, you can add a server and use the parameters set in the docker-compose.yml file user the
+*db* section, namely: ~POSTGRES_USER~, and ~POSTGRES_PASSWORD~.
+
 ** Dependencies
 - go 1.17
 ** Development Dependencies
@@ -41,6 +57,7 @@ make test
 [[file:Docs.org][link]]
 
 ** Enhancements
+*** TODO refresh tokens not being persisted
 *** TODO add config for which flows are accepted
 *** TODO Nomad + consul for full application deployment
 *** TODO [#B] Handle RS256 JWT signing alg

@@ -20,6 +20,14 @@ type Config struct {
 	Port     int
 }
 
+func FindLoginRequestByCode(code t.Code) (*t.LoginRequest, error) {
+	var loginReq t.LoginRequest
+	if err := DB.Preload("Scopes").Preload("User").First(&loginReq, "code = ?", string(code)).Error; err != nil {
+		return nil, err
+	}
+	return &loginReq, nil
+}
+
 func InitDB(config Config) {
 	var port int
 	if config.Port == 0 {
@@ -39,14 +47,16 @@ func InitDB(config Config) {
 	if err != nil {
 		log.Fatalf("Error connecting to the database: %s", err.Error())
 	}
-	db.AutoMigrate(&t.Scope{})
-	db.AutoMigrate(&t.TokenResponse{})
-	db.AutoMigrate(&t.Application{})
-	db.AutoMigrate(&t.AuthorizeRequest{})
-	db.AutoMigrate(&t.User{})
-	db.AutoMigrate(&t.RefreshRecord{})
-	db.AutoMigrate(&t.Session{})
-	db.AutoMigrate(&t.LoginRequest{})
+	db.AutoMigrate(
+		&t.Scope{},
+		&t.TokenResponse{},
+		&t.Application{},
+		&t.AuthorizeRequest{},
+		&t.User{},
+		&t.RefreshRecord{},
+		&t.Session{},
+		&t.LoginRequest{},
+	)
 
 	DB = db
 }

@@ -8,6 +8,7 @@ import (
 	t "github.com/JonHarder/oauth/internal/types"
 )
 
+// ScopeTest checks the users access by checking if their access token was associated with the requested scope.
 func ScopeTest(w http.ResponseWriter, req *http.Request, session t.Session) {
 	query := req.URL.Query()
 	resource := query.Get("resource")

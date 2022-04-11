@@ -42,8 +42,9 @@ func (req *AuthorizationCodeGrant) CreateResponse(app *t.Application) (*t.TokenR
 		return nil, fmt.Errorf("provided redirect_uri does not match registered uri")
 	}
 	log.Printf("Validating a login_request exists")
-	var loginReq t.LoginRequest
-	if err := db.DB.Preload("Scopes").Preload("User").First(&loginReq, "code = ?", string(req.Code)).Error; err != nil {
+
+	loginReq, err := db.FindLoginRequestByCode(req.Code)
+	if err != nil {
 		return nil, fmt.Errorf("Login request with code: '%s' not found", string(req.Code))
 	}
 	if pk := loginReq.Pkce; pk != nil {
@@ -73,7 +74,7 @@ func (req *AuthorizationCodeGrant) CreateResponse(app *t.Application) (*t.TokenR
 	}
 	if loginReq.ContainsScope("openid") {
 		log.Printf("Generating id_token")
-		token, err := oauth.GenerateIdToken(loginReq, *app)
+		token, err := oauth.GenerateIdToken(*loginReq, *app)
 		if err != nil {
 			return nil, err
 		}
@@ -84,9 +85,10 @@ func (req *AuthorizationCodeGrant) CreateResponse(app *t.Application) (*t.TokenR
 		resp.RefreshToken = util.RandomString(32)
 
 		refreshRecord := t.RefreshRecord{
-			TimeGranted: time.Now(),
-			Application: *app,
-			User:        *loginReq.User,
+			TimeGranted:  time.Now(),
+			Application:  *app,
+			User:         *loginReq.User,
+			RefreshToken: resp.RefreshToken,
 		}
 		db.DB.Create(&refreshRecord)
 	}

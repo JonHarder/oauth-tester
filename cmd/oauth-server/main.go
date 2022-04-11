@@ -28,24 +28,7 @@ type Options struct {
 }
 
 func indexHandler(w http.ResponseWriter, req *http.Request) {
-	w.Header().Set("Content-Type", "text/html")
-	html := `
-<html>
-  <head>
-    <title>OAuth Server</title>
-  </head>
-  <body>
-    <nav>
-     <h3>Public</h3>
-     <ul>
-      <li><a href="/settings">Settings</a></li>
-      <li><a href="/.wellknown/openid-configuration">Open ID Configuration</a></li>
-     </ul>
-    </nav>
-  </body>
-</html>
-`
-	fmt.Fprintf(w, html)
+	http.ServeFile(w, req, "./static/index.html")
 }
 
 // main is the entry point to the oauth-server.
@@ -72,9 +55,9 @@ func main() {
 	// Routes
 	/// Public routes
 	http.HandleFunc("/", indexHandler)
-	http.HandleFunc("/authorize", handlers.AuthorizationHandler())
-	http.HandleFunc("/login", handlers.LoginHandler())
-	http.HandleFunc("/token", handlers.TokenHandler())
+	http.HandleFunc("/authorize", handlers.AuthorizationHandler)
+	http.HandleFunc("/login", handlers.LoginHandler)
+	http.HandleFunc("/token", handlers.TokenHandler)
 	http.HandleFunc("/.wellknown/openid-configuration", handlers.OpenIDConfigHandler)
 
 	/// Secure routes
