@@ -13,5 +13,4 @@ ARG PORT
 EXPOSE ${PORT}
 COPY --from=build /oauth-server /oauth-server
 COPY static /static
-COPY config.json .
 ENTRYPOINT ["/oauth-server"]
