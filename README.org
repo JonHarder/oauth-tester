@@ -1,7 +1,7 @@
 * OAuth Client testing server
 This is a testing Open ID Connect compliant identity provider server. It aims to be particularly verbose in providing feedback to developers wishing to implement SSO using Open ID Connect into their service.
 
-** Running locally
+** Running
 
 #+BEGIN_SRC sh
 docker compose up
@@ -16,7 +16,7 @@ and ~PGADMIN_DEFAULT_PASSWORD~)
 Once into the dashboard, you can add a server and use the parameters set in the docker-compose.yml file user the
 *db* section, namely: ~POSTGRES_USER~, and ~POSTGRES_PASSWORD~.
 
-** Dependencies
+** Development Dependencies
 - go 1.17
 ** Development Dependencies
 - CompileDaemeon :: Used for the local dev server with automatic server rebuilding.
