@@ -154,7 +154,11 @@ func ParseTokenRequest(req *http.Request) (Grant, error) {
 func parseAuthCodeRequest(params p.ParameterBag, header http.Header) (Grant, error) {
 	clientSecret, err := oauth.GetBearerToken(header)
 	if err != nil {
-		return nil, err
+		// try grabbing client secret from post params instead
+		clientSecret = params.Get("client_secret", "")
+		if clientSecret == "" {
+			return nil, err
+		}
 	}
 	requiredParams := []string{
 		"code",
