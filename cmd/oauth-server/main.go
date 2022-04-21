@@ -82,6 +82,7 @@ func main() {
 	http.HandleFunc("/scopetest", middleware.SecureAccessMiddleware(handlers.ScopeTest))
 
 	// Administrative routes
+	http.HandleFunc("/admin", admin.AdminIndex)
 	http.HandleFunc("/admin/applications", admin.AdminApplications)
 	http.HandleFunc("/admin/users", admin.AdminUsers)
 	http.HandleFunc("/admin/users/", admin.AdminUser)

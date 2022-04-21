@@ -63,7 +63,7 @@ func (req *AuthorizationCodeGrant) CreateResponse(app *t.Application) (*t.TokenR
 	log.Printf("Generating scope string")
 	log.Printf("from %d scopes: %v", len(loginReq.Scopes), loginReq.Scopes)
 	for _, scope := range loginReq.Scopes {
-		scopeStr = scopeStr + "," + scope.Name
+		scopeStr = scopeStr + " " + scope.Name
 	}
 	resp := t.TokenResponse{
 		RefreshToken: "",
