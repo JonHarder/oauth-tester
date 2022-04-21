@@ -159,7 +159,7 @@ var loginIds map[t.LoginId]*t.AuthorizeRequest = make(map[t.LoginId]*t.Authorize
 // serveLogin displays the login form for the user.
 // It passes oauth information through as well.
 func serveLogin(w http.ResponseWriter, authorizeReq t.AuthorizeRequest, app *t.Application, e *string) {
-	html := util.BinPath("static", "login.html")
+	html := util.BinPath("public", "login.html")
 
 	tmpl := template.Must(template.New("login.html").ParseFiles(html))
 	loginId := t.LoginId(util.RandomString(32))

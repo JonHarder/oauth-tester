@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"net/url"
 	"time"
 
 	"github.com/JonHarder/oauth/internal/db"
@@ -62,14 +63,14 @@ func (req *AuthorizationCodeGrant) CreateResponse(app *t.Application) (*t.TokenR
 	log.Printf("Generating scope string")
 	log.Printf("from %d scopes: %v", len(loginReq.Scopes), loginReq.Scopes)
 	for _, scope := range loginReq.Scopes {
-		scopeStr = scopeStr + " " + scope.Name
+		scopeStr = scopeStr + "," + scope.Name
 	}
 	resp := t.TokenResponse{
 		RefreshToken: "",
 		AccessToken:  util.RandomString(32),
 		TokenType:    "Bearer",
 		ExpiresIn:    3600,
-		Scope:        scopeStr,
+		Scope:        url.QueryEscape(scopeStr),
 		IdToken:      "",
 	}
 	if loginReq.ContainsScope("openid") {
@@ -157,7 +158,7 @@ func parseAuthCodeRequest(params p.ParameterBag, header http.Header) (Grant, err
 		// try grabbing client secret from post params instead
 		clientSecret = params.Get("client_secret", "")
 		if clientSecret == "" {
-			return nil, err
+			return nil, fmt.Errorf("client_secret not provided in header or form body.")
 		}
 	}
 	requiredParams := []string{

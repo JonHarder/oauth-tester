@@ -19,6 +19,7 @@ func SecureAccessMiddleware(secureHandler SecureHandler) http.HandlerFunc {
 	return func(w http.ResponseWriter, req *http.Request) {
 		token, err := oauth.GetBearerToken(req.Header)
 		if err != nil {
+			log.Print(err)
 			w.WriteHeader(http.StatusForbidden)
 			w.Header().Set("Content-Type", "text/html")
 			html.Execute(w, err.Error())
@@ -34,6 +35,7 @@ func SecureAccessMiddleware(secureHandler SecureHandler) http.HandlerFunc {
 			return
 		}
 		if session.Expired() {
+			log.Printf("Session expired")
 			w.WriteHeader(http.StatusForbidden)
 			w.Header().Set("Content-Type", "text/html")
 			html.Execute(w, "Session expired")

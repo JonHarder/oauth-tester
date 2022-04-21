@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <title>Users</title>
+        <link rel="stylesheet" href="/css/table.css">
+    </head>
+    <body>
+        <h1>Users</h1>
+        <table>
+            <tr>
+                <th>Given Name</th>
+                <th>Family Name</th>
+                <th>Email</th>
+                <th>Actions</th>
+            </tr>
+            {{range $user := .}}
+            <tr>
+                <td>{{.GivenName}}</td>
+                <td>{{.FamilyName}}</td>
+                <td>{{.Email}}</td>
+                <td><a href="/admin/users/{{.ID}}">View</a></td>
+            </tr>
+            {{end}}
+        </table>
+    </body>
+</html>

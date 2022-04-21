@@ -1,0 +1,17 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <title>Create a new Application</title>
+    </head>
+    <body>
+        <form action="/admin/applications" method="POST">
+            <label for="name">Application name:</label>
+            <input type="text" id="name" name="name"/><br/>
+            <label for="client_id">Client ID:</label>
+            <input type="text" id="client_id" name="client_id"/><br/>
+            <label for="callback">Callback URL:</label>
+            <input type="url" id="callback" name="callback"/><br/>
+            <input type="submit" value="Submit"/>
+        </form>
+    </body>
+</html>

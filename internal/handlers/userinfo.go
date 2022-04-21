@@ -9,10 +9,12 @@ import (
 )
 
 type userInfo struct {
-	Name       string `json:"name"`
-	FamilyName string `json:"family_name"`
-	GivenName  string `json:"given_name"`
-	Email      string `json:"email"`
+	Subject           string `json:"sub"`
+	Name              string `json:"name"`
+	FamilyName        string `json:"family_name"`
+	PreferredUsername string `json:"preferred_username"`
+	GivenName         string `json:"given_name"`
+	Email             string `json:"email"`
 }
 
 func UserInfoHandler(w http.ResponseWriter, req *http.Request, session t.Session) {
@@ -21,10 +23,12 @@ func UserInfoHandler(w http.ResponseWriter, req *http.Request, session t.Session
 		fmt.Fprintf(w, "Method '%s' not supported on userinfo endpoint", method)
 	}
 	user := userInfo{
-		Name:       session.User.GivenName + " " + session.User.FamilyName,
-		FamilyName: session.User.FamilyName,
-		GivenName:  session.User.GivenName,
-		Email:      string(session.User.Email),
+		Subject:           fmt.Sprint(session.User.ID),
+		Name:              session.User.GivenName + " " + session.User.FamilyName,
+		FamilyName:        session.User.FamilyName,
+		PreferredUsername: string(session.User.GivenName[0]) + "." + session.User.FamilyName,
+		GivenName:         session.User.GivenName,
+		Email:             string(session.User.Email),
 	}
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(user)

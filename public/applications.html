@@ -1,0 +1,25 @@
+<html>
+    <head>
+        <title>Create a new application</title>
+        <link rel="stylesheet" href="/css/table.css">
+    </head>
+    <body>
+        <h1>Applications</h1>
+        <table>
+            <tr>
+                <th>Name</th>
+                <th>Client ID</th>
+                <th>Client Secret</th>
+                <th>Callback</th>
+            </tr>
+            {{range $app := .}}
+            <tr>
+                <td>{{.Name}}</td>
+                <td>{{.ClientId}}</td>
+                <td>{{.ClientSecret}}</td>
+                <td>{{.Callback}}</td>
+            </tr>
+            {{end}}
+        </table>
+    </body>
+</html>

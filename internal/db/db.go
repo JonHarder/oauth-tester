@@ -28,6 +28,31 @@ func FindLoginRequestByCode(code t.Code) (*t.LoginRequest, error) {
 	return &loginReq, nil
 }
 
+func validateConfiguration() error {
+	var count int64
+	if err := DB.Model(&t.Scope{}).Count(&count).Error; err != nil {
+		return err
+	}
+	if count == 0 {
+		log.Printf("Initializing scopes on empty db")
+		scopes := []t.Scope{
+			{
+				Name: "openid",
+			},
+			{
+				Name: "email",
+			},
+			{
+				Name: "profile",
+			},
+		}
+		if err := DB.Create(&scopes).Error; err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 func InitDB(config Config) {
 	var port int
 	if config.Port == 0 {
@@ -47,7 +72,8 @@ func InitDB(config Config) {
 	if err != nil {
 		log.Fatalf("Error connecting to the database: %s", err.Error())
 	}
-	db.AutoMigrate(
+	DB = db
+	if err := db.AutoMigrate(
 		&t.Scope{},
 		&t.TokenResponse{},
 		&t.Application{},
@@ -56,7 +82,13 @@ func InitDB(config Config) {
 		&t.RefreshRecord{},
 		&t.Session{},
 		&t.LoginRequest{},
-	)
+	); err != nil {
+		log.Fatal(err)
+	}
 
-	DB = db
+	log.Printf("Validating db configuration.")
+	if err := validateConfiguration(); err != nil {
+		log.Fatal(err)
+	}
+
 }
