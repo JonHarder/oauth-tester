@@ -19,6 +19,13 @@ Once into the dashboard, you can add a server and use the parameters set in the 
 ** Configuration
 You will need to configure at least one entry into the ~applications~ table, and one user in the ~users~ table.
 
+For now this is mostly done through the db, but read only access to the current users and applications are available
+through =admin= api route.
+
+- admin home :: /admin
+- users :: /admin/users
+- applications :: /admin/applications
+
 Alternatively, you can build and run the server with hot binary reloading using [[https://github.com/githubnemo/CompileDaemon][CompileDaemon]]
 #+BEGIN_SRC sh
 make dev
@@ -59,7 +66,23 @@ make test
 [[file:Docs.org][link]]
 
 ** Enhancements
-*** TODO refresh tokens not being persisted
+*** INPROGRESS Admin endpoints
+- =/admin/applications=
+#+BEGIN_SRC restclient
+POST /admin/applications
+Content-Type: application/x-www-form-urlencoded
+
+name=Test%20App&client_id=abc1234&client_secret=98UPpuxmcnq892FUp&callback=https%3A%2F%2Fmy.callback.com%2Fcallback
+#+END_SRC
+- =/admin/users=
+#+BEGIN_SRC restclient
+POST /admin/users
+Content-Type: application/x-www-form-urlencoded
+
+email=bob.bobson%40test.com%0A&password=super_secret&family_name=Bobson&given_name=Bob
+#+END_SRC
+*** DONE refresh tokens not being persisted
+CLOSED: [2022-04-11 Mon 13:34]
 *** TODO add config for which flows are accepted
 *** TODO Nomad + consul for full application deployment
 *** TODO [#B] Handle RS256 JWT signing alg
