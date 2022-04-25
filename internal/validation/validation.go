@@ -61,7 +61,7 @@ func ValidateAuthorizeRequest(p parameters.ParameterBag) (*t.AuthorizeRequest, *
 			ErrorDescription: decodeError.Error(),
 		}
 	}
-	scopes := strings.Split(decodedScope, ",")
+	scopes := strings.Split(decodedScope, " ")
 	if scopes[len(scopes)-1] == "" {
 		scopes = scopes[:len(scopes)-1]
 	}
