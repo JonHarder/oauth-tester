@@ -28,6 +28,15 @@ func FindLoginRequestByCode(code t.Code) (*t.LoginRequest, error) {
 	return &loginReq, nil
 }
 
+func FindSessionByAccessToken(token string) (*t.Session, error) {
+	var sesh t.Session
+	if err := DB.Debug().Joins("TokenResponse").Find(&sesh).Where("access_token = ?", token).Error; err != nil {
+		return nil, err
+	}
+	log.Printf("session lookup succeeded")
+	return &sesh, nil
+}
+
 func validateConfiguration() error {
 	var count int64
 	if err := DB.Model(&t.Scope{}).Count(&count).Error; err != nil {

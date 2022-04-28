@@ -19,12 +19,13 @@ func GenerateIdToken(loginReq t.LoginRequest, app t.Application) (*string, error
 	claims := jwt.MapClaims{
 		"iss":         constants.ISSUER,                       // Who issued this token
 		"sub":         loginReq.User.Email,                    // Identifier of the user this token represents
-		"aud":         app.Name,                               // Who is this token for
+		"aud":         app.ClientId,                           // Who is this token for
 		"exp":         time.Now().Add(time.Minute * 2).Unix(), // expiration time
 		"iat":         time.Now().Unix(),                      // when was the token issued
 		"nbf":         time.Now().Unix(),                      // time before which the token must not be accepted
 		"given_name":  loginReq.User.GivenName,                // A.K.A first name
 		"family_name": loginReq.User.FamilyName,               // A.K.A last name
+		"email":       loginReq.User.Email,
 	}
 	if loginReq.Nonce != nil {
 		claims["nonce"] = *loginReq.Nonce

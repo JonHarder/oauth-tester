@@ -1,6 +1,7 @@
 package middleware
 
 import (
+	"fmt"
 	"html/template"
 	"log"
 	"net/http"
@@ -26,14 +27,14 @@ func SecureAccessMiddleware(secureHandler SecureHandler) http.HandlerFunc {
 			return
 		}
 
-		var session t.Session
-		if err := db.DB.First(&session, "token = ?", token).Error; err != nil {
-			log.Printf("error: %v", err)
-			w.WriteHeader(http.StatusForbidden)
-			w.Header().Set("Content-Type", "text/html")
-			html.Execute(w, "No session found with bearer token")
+		session, err := db.FindSessionByAccessToken(token)
+		if err != nil {
+			log.Printf("error finding session: %v", err)
+			w.WriteHeader(http.StatusInternalServerError)
+			fmt.Fprintf(w, err.Error())
 			return
 		}
+		log.Printf("session: time granted: %v, token_response_id: %d", session.TimeGranted, session.TokenResponseID)
 		if session.Expired() {
 			log.Printf("Session expired")
 			w.WriteHeader(http.StatusForbidden)
@@ -43,7 +44,7 @@ func SecureAccessMiddleware(secureHandler SecureHandler) http.HandlerFunc {
 		}
 
 		// otherwise we're good to go
-		secureHandler(w, req, session)
+		secureHandler(w, req, *session)
 	}
 }
 
