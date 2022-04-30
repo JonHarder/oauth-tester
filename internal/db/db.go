@@ -30,10 +30,17 @@ func FindLoginRequestByCode(code t.Code) (*t.LoginRequest, error) {
 
 func FindSessionByAccessToken(token string) (*t.Session, error) {
 	var sesh t.Session
-	if err := DB.Debug().Joins("TokenResponse").Find(&sesh).Where("access_token = ?", token).Error; err != nil {
+	var tok t.TokenResponse
+	if err := DB.Find(&tok, "access_token = ?", token).Error; err != nil {
 		return nil, err
 	}
-	log.Printf("session lookup succeeded")
+	if tok.ID == uint(0) {
+		// no token found with access_token
+		return nil, nil
+	}
+	if err := DB.Preload("TokenResponse").Preload("User").Find(&sesh, "token_response_id = ?", tok.ID).Error; err != nil {
+		return nil, err
+	}
 	return &sesh, nil
 }
 

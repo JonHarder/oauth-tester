@@ -34,6 +34,12 @@ func SecureAccessMiddleware(secureHandler SecureHandler) http.HandlerFunc {
 			fmt.Fprintf(w, err.Error())
 			return
 		}
+		if session == nil {
+			log.Printf("Session not found")
+			w.WriteHeader(http.StatusNotFound)
+			fmt.Fprintf(w, "Session not found")
+			return
+		}
 		log.Printf("session: time granted: %v, token_response_id: %d", session.TimeGranted, session.TokenResponseID)
 		if session.Expired() {
 			log.Printf("Session expired")
