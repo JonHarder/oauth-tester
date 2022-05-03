@@ -12,6 +12,7 @@ import (
 	t "github.com/JonHarder/oauth/internal/types"
 	"github.com/JonHarder/oauth/internal/util"
 	v "github.com/JonHarder/oauth/internal/validation"
+
 	"github.com/gofiber/fiber/v2"
 )
 
