@@ -1,48 +1,28 @@
 package admin
 
 import (
-	"fmt"
 	"log"
-	"net/http"
-	"strings"
-	"text/template"
 
 	"github.com/JonHarder/oauth/internal/db"
 	t "github.com/JonHarder/oauth/internal/types"
-	"github.com/JonHarder/oauth/internal/util"
+	"github.com/gofiber/fiber/v2"
 )
 
-func AdminUsers(w http.ResponseWriter, req *http.Request) {
-	if req.Method == "GET" {
-		var users []t.User
-		if err := db.DB.Find(&users).Error; err != nil {
-			log.Printf("ERROR: %s", err.Error())
-			w.WriteHeader(http.StatusInternalServerError)
-			fmt.Fprintf(w, err.Error())
-			return
-		}
-		userTable.Execute(w, users)
-		return
+func AdminGetUsers(c *fiber.Ctx) error {
+	var users []t.User
+	if err := db.DB.Find(&users).Error; err != nil {
+		log.Printf("ERROR: %s", err.Error())
+		return c.Status(fiber.StatusInternalServerError).
+			SendString(err.Error())
 	}
-	if req.Method != "POST" {
-		w.WriteHeader(http.StatusMethodNotAllowed)
-		fmt.Fprintf(w, "Method not allowed")
-	}
+	return c.Render("users", users)
 }
 
-func AdminUser(w http.ResponseWriter, req *http.Request) {
-	id := strings.TrimPrefix(req.URL.Path, "/admin/users/")
+func AdminGetUser(c *fiber.Ctx) error {
+	id := c.Params("id")
 	var user t.User
 	if err := db.DB.Find(&user, "id = ?", id).Error; err != nil {
-		w.WriteHeader(http.StatusInternalServerError)
-		fmt.Fprintf(w, err.Error())
-		return
+		return c.Status(fiber.StatusInternalServerError).SendString(err.Error())
 	}
-	fmt.Fprintf(w, "%s %s", user.GivenName, user.FamilyName)
-}
-
-var userTable *template.Template
-
-func init() {
-	userTable = template.Must(template.New("users.html").ParseFiles(util.BinPath("public", "users.html")))
+	return c.Render("user", user)
 }

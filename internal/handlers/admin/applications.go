@@ -1,16 +1,12 @@
 package admin
 
 import (
-	"encoding/json"
 	"fmt"
-	"log"
-	"net/http"
-	"text/template"
 
 	"github.com/JonHarder/oauth/internal/db"
-	"github.com/JonHarder/oauth/internal/parameters"
 	t "github.com/JonHarder/oauth/internal/types"
 	"github.com/JonHarder/oauth/internal/util"
+	"github.com/gofiber/fiber/v2"
 )
 
 type appCreateRequest struct {
@@ -20,55 +16,43 @@ type appCreateRequest struct {
 	Callback     string `json:"callback"`
 }
 
-func parseAppCreateRequest(req *http.Request) (*appCreateRequest, error) {
-	params, err := parameters.NewFromForm(req)
-	log.Printf("%v", params)
-	if err != nil {
-		log.Printf("Error parsing form: %v", err)
-		return nil, err
-	}
-	if !params.Has("name") {
+func parseAppCreateRequest(c *fiber.Ctx) (*appCreateRequest, error) {
+	name := c.FormValue("name", "")
+	if name == "" {
 		return nil, fmt.Errorf("missing required field: name")
 	}
-	if !params.Has("client_id") {
+	clientId := c.FormValue("client_id", "")
+	if clientId == "" {
 		return nil, fmt.Errorf("missing required field: client_id")
 	}
-	if !params.Has("callback") {
+	callback := c.FormValue("callback", "")
+	if callback == "" {
 		return nil, fmt.Errorf("missing required field: callback")
 	}
 	clientSecret := util.RandomString(32)
 	return &appCreateRequest{
-		Name:         params.Get("name", ""),
-		ClientId:     params.Get("client_id", ""),
+		Name:         name,
+		ClientId:     clientId,
 		ClientSecret: clientSecret,
-		Callback:     params.Get("callback", ""),
+		Callback:     callback,
 	}, nil
 }
 
-func AdminApplications(w http.ResponseWriter, req *http.Request) {
-	if req.Method == "GET" {
-		// display new application form
-		w.Header().Set("Content-Type", "text/html")
-		var apps []t.Application
-		if err := db.DB.Find(&apps).Error; err != nil {
-			w.WriteHeader(http.StatusInternalServerError)
-			fmt.Fprintf(w, err.Error())
-			return
-		}
-		applications.Execute(w, apps)
-		return
+func AdminGetApplications(c *fiber.Ctx) error {
+	// display new application form
+	c.Set("Content-Type", "text/html")
+	var apps []t.Application
+	if err := db.DB.Find(&apps).Error; err != nil {
+		return c.Status(fiber.StatusInternalServerError).
+			SendString(err.Error())
 	}
-	if req.Method != "POST" {
-		w.WriteHeader(http.StatusMethodNotAllowed)
-		fmt.Fprintf(w, "Method not allowed.")
-		return
-	}
+	return c.Render("applications", apps)
+}
 
-	appRequest, err := parseAppCreateRequest(req)
+func AdminCreateApplication(c *fiber.Ctx) error {
+	appRequest, err := parseAppCreateRequest(c)
 	if err != nil {
-		w.WriteHeader(http.StatusBadRequest)
-		fmt.Fprintf(w, err.Error())
-		return
+		return c.Status(fiber.StatusBadRequest).SendString(err.Error())
 	}
 	app := t.Application{
 		ClientId:     appRequest.ClientId,
@@ -77,22 +61,7 @@ func AdminApplications(w http.ResponseWriter, req *http.Request) {
 		Name:         appRequest.Name,
 	}
 	if err := db.DB.Create(&app).Error; err != nil {
-		w.WriteHeader(http.StatusInternalServerError)
-		fmt.Fprintf(w, err.Error())
-		return
+		return c.Status(fiber.StatusInternalServerError).SendString(err.Error())
 	}
-	w.Header().Set("Content-Type", "application/json")
-	encoder := json.NewEncoder(w)
-	encoder.SetIndent("", "  ")
-	encoder.Encode(app)
-}
-
-var applications *template.Template
-
-func init() {
-	applications = template.Must(
-		template.
-			New("applications.html").
-			ParseFiles(util.BinPath("public", "applications.html")),
-	)
+	return c.JSON(app)
 }

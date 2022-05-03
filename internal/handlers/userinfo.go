@@ -1,11 +1,10 @@
 package handlers
 
 import (
-	"encoding/json"
 	"fmt"
-	"net/http"
 
 	t "github.com/JonHarder/oauth/internal/types"
+	"github.com/gofiber/fiber/v2"
 )
 
 type userInfo struct {
@@ -17,11 +16,8 @@ type userInfo struct {
 	Email             string `json:"email"`
 }
 
-func UserInfoHandler(w http.ResponseWriter, req *http.Request, session t.Session) {
-	if method := req.Method; method != "GET" {
-		w.WriteHeader(http.StatusMethodNotAllowed)
-		fmt.Fprintf(w, "Method '%s' not supported on userinfo endpoint", method)
-	}
+func UserInfoHandler(c *fiber.Ctx) error {
+	session := c.Locals("session").(*t.Session)
 	user := userInfo{
 		Subject:           fmt.Sprint(session.User.ID),
 		Name:              session.User.GivenName + " " + session.User.FamilyName,
@@ -30,6 +26,5 @@ func UserInfoHandler(w http.ResponseWriter, req *http.Request, session t.Session
 		GivenName:         session.User.GivenName,
 		Email:             string(session.User.Email),
 	}
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(user)
+	return c.JSON(user)
 }

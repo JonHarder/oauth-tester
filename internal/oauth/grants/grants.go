@@ -3,16 +3,15 @@ package grants
 import (
 	"fmt"
 	"log"
-	"net/http"
 	"net/url"
 	"time"
 
 	"github.com/JonHarder/oauth/internal/db"
 	"github.com/JonHarder/oauth/internal/oauth"
 	"github.com/JonHarder/oauth/internal/oauth/pkce"
-	p "github.com/JonHarder/oauth/internal/parameters"
 	t "github.com/JonHarder/oauth/internal/types"
 	"github.com/JonHarder/oauth/internal/util"
+	"github.com/gofiber/fiber/v2"
 )
 
 type Grant interface {
@@ -136,27 +135,23 @@ func (req *TokenRefreshGrant) CreateResponse(app *t.Application) (*t.TokenRespon
 }
 
 // ParseTokenRequest takes a request and turns it into a token object according to the grant_type.
-func ParseTokenRequest(req *http.Request) (Grant, error) {
-	params, err := p.NewFromForm(req)
-	if err != nil {
-		return nil, err
-	}
-	grantType := params.Get("grant_type", "")
+func ParseTokenRequest(c *fiber.Ctx) (Grant, error) {
+	grantType := c.FormValue("grant_type")
 	switch grantType {
 	case "authorization_code":
-		return parseAuthCodeRequest(*params, req.Header)
+		return parseAuthCodeRequest(c)
 	case "refresh_token":
-		return parseRefreshTokenRequest(*params)
+		return parseRefreshTokenRequest(c)
 	default:
 		return nil, fmt.Errorf("unknown grant type: %s", grantType)
 	}
 }
 
-func parseAuthCodeRequest(params p.ParameterBag, header http.Header) (Grant, error) {
-	clientSecret, err := oauth.GetBearerToken(header)
+func parseAuthCodeRequest(c *fiber.Ctx) (Grant, error) {
+	clientSecret, err := oauth.GetBearerToken(c)
 	if err != nil {
 		// try grabbing client secret from post params instead
-		clientSecret = params.Get("client_secret", "")
+		clientSecret = c.FormValue("client_secret", "")
 		if clientSecret == "" {
 			return nil, fmt.Errorf("client_secret not provided in header or form body.")
 		}
@@ -167,38 +162,38 @@ func parseAuthCodeRequest(params p.ParameterBag, header http.Header) (Grant, err
 		"client_id",
 	}
 	for _, p := range requiredParams {
-		if !params.Has(p) {
+		if c.FormValue(p, "") == "" {
 			return nil, fmt.Errorf("authorization_code request missing required parameter: %s", p)
 		}
 	}
-	code := t.Code(params.Get("code", ""))
+	code := t.Code(c.FormValue("code", ""))
 	var codeVerifier *string
-	if c := params.Get("code_verifier", ""); c != "" {
+	if c := c.FormValue("code_verifier", ""); c != "" {
 		codeVerifier = &c
 	}
 	return &AuthorizationCodeGrant{
-		ClientId:     params.Get("client_id", ""),
+		ClientId:     c.FormValue("client_id", ""),
 		ClientSecret: clientSecret,
-		RedirectUri:  params.Get("redirect_uri", ""),
+		RedirectUri:  c.FormValue("redirect_uri", ""),
 		Code:         code,
 		CodeVerifier: codeVerifier,
 	}, nil
 }
 
-func parseRefreshTokenRequest(params p.ParameterBag) (Grant, error) {
+func parseRefreshTokenRequest(c *fiber.Ctx) (Grant, error) {
 	requiredParams := []string{
 		"client_id",
 		"client_secret",
 		"refresh_token",
 	}
 	for _, p := range requiredParams {
-		if !params.Has(p) {
+		if c.FormValue(p, "") == "" {
 			return nil, fmt.Errorf("token_refresh request missing required parameter: %s", p)
 		}
 	}
 	return &TokenRefreshGrant{
-		RefreshToken: params.Get("refresh_token", ""),
-		ClientId:     params.Get("client_id", ""),
-		ClientSecret: params.Get("client_secret", ""),
+		RefreshToken: c.FormValue("refresh_token", ""),
+		ClientId:     c.FormValue("client_id", ""),
+		ClientSecret: c.FormValue("client_secret", ""),
 	}, nil
 }

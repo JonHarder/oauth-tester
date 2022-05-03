@@ -1,8 +1,7 @@
 package admin
 
 import (
-	"fmt"
-	"net/http"
+	"github.com/gofiber/fiber/v2"
 )
 
 var indexHtml string = `
@@ -17,7 +16,7 @@ var indexHtml string = `
 </html>
 `
 
-func AdminIndex(w http.ResponseWriter, req *http.Request) {
-	w.Header().Set("Content-Type", "text/html")
-	fmt.Fprintf(w, indexHtml)
+func AdminIndex(c *fiber.Ctx) error {
+	c.Set("Content-Type", "text/html")
+	return c.SendString(indexHtml)
 }

@@ -1,0 +1,20 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <title>{{ .GivenName }} {{ .FamilyName }}</title>
+        <style>
+         body {
+             padding: 2em;
+         }
+        </style>
+    </head>
+    <body>
+        <h1>{{ .GivenName }} {{ .FamilyName }}</h1>
+        <div>Email: {{ .Email }}</div>
+        <h2>Actions:</h2>
+        <ul>
+            <li><a style="color: red">Delete</a></li>
+            <li><a>Update</a></li>
+        </ul>
+    </body>
+</html>

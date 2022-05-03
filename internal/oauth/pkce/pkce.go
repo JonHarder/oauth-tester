@@ -3,8 +3,8 @@ package pkce
 import (
 	"fmt"
 
-	"github.com/JonHarder/oauth/internal/parameters"
 	"github.com/JonHarder/oauth/internal/util"
+	"github.com/gofiber/fiber/v2"
 )
 
 // Convience struct used to store information
@@ -39,11 +39,11 @@ func ValidatePkce(pkce PKCE, verifier string) error {
 	return nil
 }
 
-func ParsePkce(p parameters.ParameterBag) (*PKCE, error) {
+func ParsePkce(c *fiber.Ctx) (*PKCE, error) {
 	var pkce *PKCE = nil
-	codeChallenge, codeChallengeOk := p.Parameters["code_challenge"]
-	if codeChallengeOk {
-		codeChallengeMethod := p.Get("code_challenge_method", "plain")
+	codeChallenge := c.FormValue("code_challenge")
+	if codeChallenge != "" {
+		codeChallengeMethod := c.FormValue("code_challenge_method", "plain")
 		pkce = &PKCE{
 			CodeChallenge:       codeChallenge,
 			CodeChallengeMethod: codeChallengeMethod,

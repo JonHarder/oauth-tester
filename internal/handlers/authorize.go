@@ -2,52 +2,46 @@ package handlers
 
 import (
 	"fmt"
-	"html/template"
 	"log"
-	"net/http"
 	"net/url"
 	"strings"
 	"time"
 
 	"github.com/JonHarder/oauth/internal/db"
 	"github.com/JonHarder/oauth/internal/oauth"
-	"github.com/JonHarder/oauth/internal/parameters"
 	t "github.com/JonHarder/oauth/internal/types"
 	"github.com/JonHarder/oauth/internal/util"
 	v "github.com/JonHarder/oauth/internal/validation"
+	"github.com/gofiber/fiber/v2"
 )
 
 // AuthorizationHandler handles the /authorize requests made by an oauth2.0 client.
 // It does minimal validation, then presents the user with a login page requesting
 // access on behalf of the service provider.
-func AuthorizationHandler(w http.ResponseWriter, req *http.Request) {
-	params := parameters.NewFromQuery(req)
-	authReq, err := v.ValidateAuthorizeRequest(*params)
+func AuthorizationHandler(c *fiber.Ctx) error {
+	authReq, err := v.ValidateAuthorizeRequest(c)
 	if err != nil {
-		w.WriteHeader(http.StatusBadRequest)
-		fmt.Fprintf(w, "%s: %s", err.ErrorCode, err.ErrorDescription)
-		return
+		return c.Status(fiber.StatusInternalServerError).
+			SendString(fmt.Sprintf("%s: %s", err.ErrorCode, err.ErrorDescription))
 	}
 	log.Printf("authorize request: %v", authReq)
 
 	var app t.Application
 	if err := db.DB.First(&app, "client_id = ?", authReq.ClientId).Error; err != nil {
-		HandleBadRequest(w, req, authReq.RedirectUri, v.ValidationError{
+		return HandleBadRequest(c, authReq.RedirectUri, v.ValidationError{
 			ErrorCode:        v.AuthErrorUnauthorizedClient,
 			ErrorDescription: fmt.Sprintf("No client configured with ID: %s", authReq.ClientId),
 		})
-		return
 	}
 
 	if app.Callback != authReq.RedirectUri {
-		HandleBadRequest(w, req, authReq.RedirectUri, v.ValidationError{
+		return HandleBadRequest(c, authReq.RedirectUri, v.ValidationError{
 			ErrorCode:        v.AuthErrorInvalidRequest,
 			ErrorDescription: "token reqirect_uri does not match authorization request",
 		})
-		return
 	}
 
-	serveLogin(w, *authReq, &app, nil)
+	return serveLogin(c, *authReq, &app, nil)
 }
 
 // loginHandler processes the login after the user logs in.
@@ -55,49 +49,35 @@ func AuthorizationHandler(w http.ResponseWriter, req *http.Request) {
 // serves the login form.
 // After successful generation of the authorization code, the user
 // is redirected to their specified callback url.
-func LoginHandler(w http.ResponseWriter, req *http.Request) {
-	params, err := parameters.NewFromForm(req)
-	if err != nil {
-		w.WriteHeader(http.StatusBadRequest)
-		fmt.Fprintf(w, "invalid post body. expecting content type 'application/x-www-urnencoded'")
-		return
-	}
-	loginId, ok := params.Parameters["login_id"]
-	if !ok {
-		w.WriteHeader(http.StatusBadRequest)
-		fmt.Fprintf(w, "missing login_id")
-		return
+func LoginHandler(c *fiber.Ctx) error {
+	loginId := c.FormValue("login_id")
+	if loginId == "" {
+		return c.Status(fiber.StatusBadRequest).SendString("missing login_id")
 	}
 	authReq, ok := loginIds[t.LoginId(loginId)]
 	if !ok {
-		w.WriteHeader(http.StatusBadRequest)
-		fmt.Fprintf(w, "unknown login request, login_id not found")
-		return
+		return c.Status(fiber.StatusBadRequest).SendString("unknown login request, login_id not found")
 	}
 
 	var app t.Application
 	if err := db.DB.First(&app, "client_id = ?", authReq.ClientId).Error; err != nil {
-		HandleBadRequest(w, req, authReq.RedirectUri, v.ValidationError{
+		return HandleBadRequest(c, authReq.RedirectUri, v.ValidationError{
 			ErrorCode:        v.AuthErrorInvalidRequest,
 			ErrorDescription: "unknown client_id",
 		})
-		return
 	}
 
 	if app.Callback != authReq.RedirectUri {
-		w.WriteHeader(http.StatusForbidden)
-		fmt.Fprintf(w, "Callback does not match registered redirect uri")
-		return
+		return c.Status(fiber.StatusForbidden).SendString("Callback does not match registered redirect uri")
 	}
 	responseParams := url.Values{}
 	responseParams.Set("state", authReq.State)
 	responseParams.Set("client_id", app.ClientId)
 
-	u, err := validateUser(t.Email(req.FormValue("email")), req.FormValue("psw"))
+	u, err := validateUser(t.Email(c.FormValue("email")), c.FormValue("psw"))
 	if err != nil {
 		errorMsg := err.Error()
-		serveLogin(w, *authReq, &app, &errorMsg)
-		return
+		return serveLogin(c, *authReq, &app, &errorMsg)
 	}
 
 	nonce := util.RandomString(32)
@@ -151,17 +131,14 @@ func LoginHandler(w http.ResponseWriter, req *http.Request) {
 	}
 
 	responseUrl := authReq.RedirectUri + "?" + responseParams.Encode()
-	http.Redirect(w, req, responseUrl, 301)
+	return c.Redirect(responseUrl, 301)
 }
 
 var loginIds map[t.LoginId]*t.AuthorizeRequest = make(map[t.LoginId]*t.AuthorizeRequest)
 
 // serveLogin displays the login form for the user.
 // It passes oauth information through as well.
-func serveLogin(w http.ResponseWriter, authorizeReq t.AuthorizeRequest, app *t.Application, e *string) {
-	html := util.BinPath("public", "login.html")
-
-	tmpl := template.Must(template.New("login.html").ParseFiles(html))
+func serveLogin(c *fiber.Ctx, authorizeReq t.AuthorizeRequest, app *t.Application, e *string) error {
 	loginId := t.LoginId(util.RandomString(32))
 	loginIds[loginId] = &authorizeReq
 
@@ -181,11 +158,7 @@ func serveLogin(w http.ResponseWriter, authorizeReq t.AuthorizeRequest, app *t.A
 		Scopes:  scopes,
 		Error:   e,
 	}
-	if err := tmpl.Execute(w, data); err != nil {
-		log.Printf("ERROR: executing template: %v", err)
-		fmt.Fprintf(w, "ERROR: executing template: %v", err)
-		w.WriteHeader(http.StatusInternalServerError)
-	}
+	return c.Render("login", data)
 }
 
 func generateCode() t.Code {

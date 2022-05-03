@@ -8,8 +8,8 @@ import (
 
 	"github.com/JonHarder/oauth/internal/db"
 	"github.com/JonHarder/oauth/internal/oauth/pkce"
-	"github.com/JonHarder/oauth/internal/parameters"
 	t "github.com/JonHarder/oauth/internal/types"
+	"github.com/gofiber/fiber/v2"
 )
 
 const AuthErrorInvalidRequest = "invalid_request"
@@ -29,7 +29,7 @@ type ValidationError struct {
 // ValidateAuthhorizeRequest takes incoming parameters and creates an AuthorizeRequest.
 // If there was an issue in parsing and validating, a ValidationError with information
 // pertaining to the issue will be retuned.
-func ValidateAuthorizeRequest(p parameters.ParameterBag) (*t.AuthorizeRequest, *ValidationError) {
+func ValidateAuthorizeRequest(c *fiber.Ctx) (*t.AuthorizeRequest, *ValidationError) {
 	requiredParameters := []string{
 		"response_type",
 		"redirect_uri",
@@ -39,7 +39,7 @@ func ValidateAuthorizeRequest(p parameters.ParameterBag) (*t.AuthorizeRequest, *
 	}
 	// Check for missing required parameters.
 	for _, param := range requiredParameters {
-		if !p.Has(param) {
+		if c.FormValue(param) == "" {
 			return nil, &ValidationError{
 				ErrorCode:        AuthErrorInvalidRequest,
 				ErrorDescription: fmt.Sprintf("missing required parameter: %s", param),
@@ -47,13 +47,13 @@ func ValidateAuthorizeRequest(p parameters.ParameterBag) (*t.AuthorizeRequest, *
 		}
 	}
 
-	if p.Parameters["response_type"] != "code" {
+	if c.FormValue("response_type") != "code" {
 		return nil, &ValidationError{
 			ErrorCode:        AuthErrorUnsupportedResponseType,
 			ErrorDescription: "server only supports response_type of 'code'",
 		}
 	}
-	scope := p.Parameters["scope"]
+	scope := c.FormValue("scope")
 	decodedScope, decodeError := url.QueryUnescape(scope)
 	if decodeError != nil {
 		return nil, &ValidationError{
@@ -76,7 +76,7 @@ func ValidateAuthorizeRequest(p parameters.ParameterBag) (*t.AuthorizeRequest, *
 		}
 	}
 
-	pkce, err := pkce.ParsePkce(p)
+	pkce, err := pkce.ParsePkce(c)
 	if err != nil {
 		return nil, &ValidationError{
 			ErrorCode:        AuthErrorInvalidRequest,
@@ -85,10 +85,10 @@ func ValidateAuthorizeRequest(p parameters.ParameterBag) (*t.AuthorizeRequest, *
 	}
 
 	return &t.AuthorizeRequest{
-		ClientId:     p.Parameters["client_id"],
-		RedirectUri:  p.Parameters["redirect_uri"],
-		ResponseType: p.Parameters["response_type"],
-		State:        p.Parameters["state"],
+		ClientId:     c.FormValue("client_id"),
+		RedirectUri:  c.FormValue("redirect_uri"),
+		ResponseType: c.FormValue("response_type"),
+		State:        c.FormValue("state"),
 		Pkce:         pkce,
 		Scopes:       allowedScopes,
 	}, nil

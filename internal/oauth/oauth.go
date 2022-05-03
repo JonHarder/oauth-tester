@@ -3,12 +3,12 @@ package oauth
 import (
 	"fmt"
 	"log"
-	"net/http"
 	"strings"
 	"time"
 
 	"github.com/JonHarder/oauth/internal/constants"
 	t "github.com/JonHarder/oauth/internal/types"
+	"github.com/gofiber/fiber/v2"
 	"github.com/golang-jwt/jwt"
 )
 
@@ -38,8 +38,8 @@ func GenerateIdToken(loginReq t.LoginRequest, app t.Application) (*string, error
 	return &tokenStr, nil
 }
 
-func GetBearerToken(header http.Header) (string, error) {
-	bearer := header.Get("Authorization")
+func GetBearerToken(c *fiber.Ctx) (string, error) {
+	bearer := c.Get("Authorization", "")
 	if bearer == "" {
 		return "", fmt.Errorf("missing Authorization header")
 	}

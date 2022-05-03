@@ -1,14 +1,14 @@
 package main
 
 import (
-	"errors"
 	"fmt"
-	"html/template"
 	"log"
 	"math/rand"
-	"net/http"
 	"os"
 	"time"
+
+	"github.com/gofiber/fiber/v2"
+	"github.com/gofiber/template/html"
 
 	"github.com/JonHarder/oauth/internal/db"
 	"github.com/JonHarder/oauth/internal/handlers"
@@ -21,42 +21,16 @@ func init() {
 	rand.Seed(time.Now().UnixNano())
 }
 
-func init() {
-	rand.Seed(time.Now().UnixNano())
-}
-
 type Options struct {
 	configPath string
 }
 
-func indexHandler(w http.ResponseWriter, req *http.Request) {
-	if req.URL.Path != "/" {
-		w.WriteHeader(http.StatusNotFound)
-		w.Header().Set("Content-Type", "text/html")
-		t := template.Must(template.New("404.html").Parse(`
-            <html>
-              <head>
-                <title>Not Found</title>
-              </head>
-              <body>
-                <h1>404 Not Found</h1>
-                <h2>Page {{.}} Not found</h2>
-              </body>
-            </html>
-        `))
-		t.Execute(w, req.URL.Path)
-		return
-	}
-	http.ServeFile(w, req, "./public/index.html")
+func indexHandler(c *fiber.Ctx) error {
+	return c.SendFile(util.BinPath("public", "index.html"))
 }
 
 // main is the entry point to the oauth-server.
 func main() {
-	html := util.BinPath("public", "login.html")
-	if _, err := os.Stat(html); errors.Is(err, os.ErrNotExist) {
-		log.Fatalf("ERROR: html file 'login.html' not found.")
-	}
-
 	log.Printf("Initializing DB")
 	db.InitDB(db.Config{
 		Name:     os.Getenv("DB_DB"),
@@ -66,26 +40,33 @@ func main() {
 	})
 	log.Printf("Finished Initializing DB")
 
+	engine := html.New("./public", ".html")
+	app := fiber.New(fiber.Config{
+		Views: engine,
+	})
+
 	// Routes
 	/// Public routes
-	http.HandleFunc("/", indexHandler)
-	http.HandleFunc("/authorize", handlers.AuthorizationHandler)
-	http.HandleFunc("/login", handlers.LoginHandler)
-	http.HandleFunc("/token", handlers.TokenHandler)
-	http.HandleFunc("/.wellknown/openid-configuration", handlers.OpenIDConfigHandler)
+	app.Get("/", indexHandler)
+	app.Get("/authorize", handlers.AuthorizationHandler)
+	app.Post("/login", handlers.LoginHandler)
+	app.Post("/token", handlers.TokenHandler)
+	// app.Get("/.wellknown/openid-configuration", handlers.OpenIDConfigHandler)
 
-	/// static assets
-	http.Handle("/css/", http.StripPrefix("/css/", http.FileServer(http.Dir("./public/css"))))
+	// /// static assets
+	app.Static("/css", "./public/css")
 
-	/// Secure routes
-	http.HandleFunc("/userinfo", middleware.SecureAccessMiddleware(handlers.UserInfoHandler))
-	http.HandleFunc("/scopetest", middleware.SecureAccessMiddleware(handlers.ScopeTest))
+	// /// Secure routes
+	app.Get("/userinfo", middleware.SecureAccessMiddleware, handlers.UserInfoHandler)
+	app.Get("/scopetest", middleware.SecureAccessMiddleware, handlers.ScopeTest)
 
-	// Administrative routes
-	http.HandleFunc("/admin", admin.AdminIndex)
-	http.HandleFunc("/admin/applications", admin.AdminApplications)
-	http.HandleFunc("/admin/users", admin.AdminUsers)
-	http.HandleFunc("/admin/users/", admin.AdminUser)
+	// // Administrative routes
+	adminApi := app.Group("/admin")
+	adminApi.Get("/", admin.AdminIndex)
+	adminApi.Get("/users", admin.AdminGetUsers)
+	adminApi.Get("/users/:id", admin.AdminGetUser)
+	adminApi.Get("/applications", admin.AdminGetApplications)
+	adminApi.Post("/applications", admin.AdminCreateApplication)
 	// End Routes
 
 	port := os.Getenv("PORT")
@@ -93,8 +74,5 @@ func main() {
 		port = "8001"
 	}
 	log.Printf("Listening on http://localhost:%s", port)
-
-	if err := http.ListenAndServe(fmt.Sprintf(":%s", port), nil); err != nil {
-		log.Fatalf("Error starting server: %v", err)
-	}
+	log.Fatal(app.Listen(fmt.Sprintf(":%s", port)))
 }
