@@ -1,11 +1,8 @@
 package handlers
 
 import (
-	"encoding/json"
-	"fmt"
-	"net/http"
-
 	"github.com/JonHarder/oauth/internal/constants"
+	"github.com/gofiber/fiber/v2"
 )
 
 type OpenIdConfiguration struct {
@@ -22,13 +19,6 @@ var Configuration = OpenIdConfiguration{
 	UserInfoEndpoint:      "http://127.0.0.1:8001/userinfo",
 }
 
-func OpenIDConfigHandler(w http.ResponseWriter, req *http.Request) {
-	data, err := json.MarshalIndent(Configuration, "", "  ")
-	if err != nil {
-		w.WriteHeader(http.StatusInternalServerError)
-		fmt.Fprintf(w, err.Error())
-		return
-	}
-	w.Header().Add("Content-Type", "application/json")
-	w.Write(data)
+func OpenIDConfigHandler(c *fiber.Ctx) error {
+	return c.JSON(Configuration)
 }

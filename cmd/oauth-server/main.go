@@ -51,7 +51,7 @@ func main() {
 	app.Get("/authorize", handlers.AuthorizationHandler)
 	app.Post("/login", handlers.LoginHandler)
 	app.Post("/token", handlers.TokenHandler)
-	// app.Get("/.wellknown/openid-configuration", handlers.OpenIDConfigHandler)
+	app.Get("/.wellknown/openid-configuration", handlers.OpenIDConfigHandler)
 
 	// /// static assets
 	app.Static("/css", "./public/css")
