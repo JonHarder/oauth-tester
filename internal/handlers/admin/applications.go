@@ -1,7 +1,7 @@
 package admin
 
 import (
-	"fmt"
+	"net/url"
 
 	"github.com/JonHarder/oauth/internal/db"
 	t "github.com/JonHarder/oauth/internal/types"
@@ -10,32 +10,10 @@ import (
 )
 
 type appCreateRequest struct {
-	Name         string `json:"name"`
-	ClientId     string `json:"client_id"`
-	ClientSecret string `json:"client_secret"`
-	Callback     string `json:"callback"`
-}
-
-func parseAppCreateRequest(c *fiber.Ctx) (*appCreateRequest, error) {
-	name := c.FormValue("name", "")
-	if name == "" {
-		return nil, fmt.Errorf("missing required field: name")
-	}
-	clientId := c.FormValue("client_id", "")
-	if clientId == "" {
-		return nil, fmt.Errorf("missing required field: client_id")
-	}
-	callback := c.FormValue("callback", "")
-	if callback == "" {
-		return nil, fmt.Errorf("missing required field: callback")
-	}
-	clientSecret := util.RandomString(32)
-	return &appCreateRequest{
-		Name:         name,
-		ClientId:     clientId,
-		ClientSecret: clientSecret,
-		Callback:     callback,
-	}, nil
+	Name         string `json:"name" form:"name"`
+	ClientId     string `json:"client_id" form:"client_id"`
+	ClientSecret string
+	Callback     string `json:"callback" form:"callback"`
 }
 
 func AdminGetApplications(c *fiber.Ctx) error {
@@ -50,15 +28,27 @@ func AdminGetApplications(c *fiber.Ctx) error {
 }
 
 func AdminCreateApplication(c *fiber.Ctx) error {
-	appRequest, err := parseAppCreateRequest(c)
+	appRequest := appCreateRequest{
+		ClientSecret: util.RandomString(32),
+	}
+	if err := c.BodyParser(&appRequest); err != nil {
+		return c.
+			Status(fiber.StatusInternalServerError).
+			SendString(err.Error())
+	}
+	callback, err := url.QueryUnescape(appRequest.Callback)
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).SendString(err.Error())
+	}
+	name, err := url.QueryUnescape(appRequest.Name)
 	if err != nil {
 		return c.Status(fiber.StatusBadRequest).SendString(err.Error())
 	}
 	app := t.Application{
 		ClientId:     appRequest.ClientId,
 		ClientSecret: appRequest.ClientSecret,
-		Callback:     appRequest.Callback,
-		Name:         appRequest.Name,
+		Callback:     callback,
+		Name:         name,
 	}
 	if err := db.DB.Create(&app).Error; err != nil {
 		return c.Status(fiber.StatusInternalServerError).SendString(err.Error())
