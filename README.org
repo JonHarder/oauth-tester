@@ -26,7 +26,7 @@ through =admin= api route.
 - users :: /admin/users
 - applications :: /admin/applications
 
-Alternatively, you can build and run the server with hot binary reloading using [[https://github.com/githubnemo/CompileDaemon][CompileDaemon]]
+*DEPRECATED* Alternatively, you can build and run the server with hot binary reloading using [[https://github.com/githubnemo/CompileDaemon][CompileDaemon]]
 #+BEGIN_SRC sh
 make dev
 #+END_SRC
